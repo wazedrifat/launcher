@@ -1,11 +1,12 @@
 {
-  "app_name": "Test Launcher App",
+  "app_name": "Driving Simulator Launcher",
   "github_repo": {
-    "url": "https://github.com/furiousPotato1/test",
+    "url": "https://github.com/furiousPotato1/Driving-Simulator-Builds",
     "branch": "main"
   },
-  "local_folder": "C:\\Users\\User\\Documents\\test-launcher",
+  "local_folder": "C:\\Program Files\\Driving-Simulator",
   "background_image": "assets/images/bg.jpg",
   "update_check_interval": 300000,
-  "exe_file_name": "Driving-Simulator.exe"
+  "exe_file_name": "Driving-Simulator.exe",
+  "app_icon": "assets/icons/app.ico"
 }

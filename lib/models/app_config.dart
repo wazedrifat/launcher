@@ -5,6 +5,7 @@ class AppConfig {
   final String backgroundImage; // empty means no background image
   final int updateCheckInterval;
   final String exeFileName; // exact executable name to launch
+  final String appIcon; // optional .ico path for Windows build assets
 
   AppConfig({
     required this.appName,
@@ -13,6 +14,7 @@ class AppConfig {
     required this.backgroundImage,
     required this.updateCheckInterval,
     required this.exeFileName,
+    required this.appIcon,
   });
 
   factory AppConfig.fromJson(Map<String, dynamic> json) {
@@ -23,6 +25,7 @@ class AppConfig {
       backgroundImage: (json['background_image'] as String?) ?? '',
       updateCheckInterval: json['update_check_interval'] as int,
       exeFileName: json['exe_file_name'] as String,
+      appIcon: (json['app_icon'] as String?) ?? '',
     );
   }
 
@@ -34,6 +37,7 @@ class AppConfig {
       'background_image': backgroundImage,
       'update_check_interval': updateCheckInterval,
       'exe_file_name': exeFileName,
+      'app_icon': appIcon,
     };
   }
 }

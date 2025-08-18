@@ -14,6 +14,12 @@ void main() async {
     await windowManager.ensureInitialized();
     LoggerService.instance.info('Window manager initialized', tag: 'MAIN');
     
+    // Load app configuration early so we can set the title
+    await ConfigService.instance.loadConfig();
+    LoggerService.instance.info('App configuration loaded', tag: 'MAIN');
+
+    final String appTitle = ConfigService.instance.config?.appName ?? 'Launcher App';
+
     // Set window properties
     WindowOptions windowOptions = const WindowOptions(
       size: Size(800, 600),
@@ -27,12 +33,9 @@ void main() async {
     windowManager.waitUntilReadyToShow(windowOptions, () async {
       await windowManager.show();
       await windowManager.focus();
+      await windowManager.setTitle(appTitle);
       LoggerService.instance.info('Window displayed and focused', tag: 'MAIN');
     });
-    
-    // Load app configuration
-    await ConfigService.instance.loadConfig();
-    LoggerService.instance.info('App configuration loaded', tag: 'MAIN');
     
     runApp(const LauncherApp());
     LoggerService.instance.info('App started successfully', tag: 'MAIN');
