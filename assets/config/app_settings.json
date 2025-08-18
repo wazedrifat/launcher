@@ -7,5 +7,5 @@
   "local_folder": "C:\\Users\\User\\Documents\\test-launcher",
   "background_image": "assets/images/bg.jpg",
   "update_check_interval": 300000,
-  "exe_file_pattern": "*.exe"
+  "exe_file_name": "Driving-Simulator.exe"
 }

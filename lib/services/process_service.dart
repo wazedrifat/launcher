@@ -7,28 +7,28 @@ class ProcessService {
   factory ProcessService() => instance;
   ProcessService._internal();
 
-  Future<String?> findExecutable(String folderPath, String pattern) async {
+  Future<String?> findExecutable(String folderPath, String exeFileName) async {
     try {
-      LoggerService.instance.logProcessOperation('Find executable', details: 'Searching in $folderPath for $pattern');
-      
+      LoggerService.instance.logProcessOperation('Find executable', details: 'Searching ${exeFileName} in $folderPath');
+
       final directory = Directory(folderPath);
       if (!directory.existsSync()) {
         LoggerService.instance.warning('Directory does not exist: $folderPath', tag: 'PROCESS');
         return null;
       }
 
-      final files = directory.listSync();
-      for (final file in files) {
-        if (file is File && file.path.endsWith('.exe')) {
-          LoggerService.instance.logProcessOperation('Executable found', details: 'Found: ${file.path}');
-          return file.path;
-        }
+      final candidate = File('${folderPath.replaceAll('\\', '/')}/$exeFileName');
+      if (candidate.existsSync()) {
+        LoggerService.instance.logProcessOperation('Executable found', details: 'Found: ${candidate.path}');
+        return candidate.path;
       }
-      
-      LoggerService.instance.warning('No executable found in directory: $folderPath', tag: 'PROCESS');
+
+      LoggerService.instance.warning('Executable not found: $exeFileName in $folderPath', tag: 'PROCESS');
       return null;
     } catch (e, stackTrace) {
       LoggerService.instance.logProcessOperation('Find executable failed', error: e, stackTrace: stackTrace);
+      print('[PROCESS][ERROR] $e');
+      print('[PROCESS][STACK] $stackTrace');
       return null;
     }
   }
@@ -40,15 +40,17 @@ class ProcessService {
         ['/FI', 'IMAGENAME eq ${exePath.split('\\').last}'],
         workingDirectory: Directory.current.path,
       );
-      
+
       if (result.exitCode == 0) {
         final output = result.stdout.toString();
-        // Check if the process is actually running (not just found in tasklist)
-        return output.contains(exePath.split('\\').last) && 
-               !output.contains('INFO: No tasks are running');
+        return output.contains(exePath.split('\\').last) &&
+            !output.contains('INFO: No tasks are running');
       }
       return false;
-    } catch (e) {
+    } catch (e, stack) {
+      LoggerService.instance.logProcessOperation('Failed to check process status', error: e, stackTrace: stack);
+      print('[PROCESS][ERROR] $e');
+      print('[PROCESS][STACK] $stack');
       return false;
     }
   }
@@ -57,7 +59,10 @@ class ProcessService {
     try {
       final result = await Process.start(exePath, []);
       return result.pid != null;
-    } catch (e) {
+    } catch (e, stack) {
+      LoggerService.instance.logProcessOperation('Failed to launch executable', error: e, stackTrace: stack);
+      print('[PROCESS][ERROR] $e');
+      print('[PROCESS][STACK] $stack');
       return false;
     }
   }
@@ -69,13 +74,16 @@ class ProcessService {
         ['/FO', 'CSV'],
         workingDirectory: Directory.current.path,
       );
-      
+
       if (result.exitCode == 0) {
         final lines = result.stdout.toString().split('\n');
         return lines.where((line) => line.trim().isNotEmpty).toList();
       }
       return [];
-    } catch (e) {
+    } catch (e, stack) {
+      LoggerService.instance.logProcessOperation('Failed to get running processes', error: e, stackTrace: stack);
+      print('[PROCESS][ERROR] $e');
+      print('[PROCESS][STACK] $stack');
       return [];
     }
   }

@@ -2,9 +2,9 @@ class AppConfig {
   final String appName;
   final GitHubRepo githubRepo;
   final String localFolder;
-  final String backgroundImage;
+  final String backgroundImage; // empty means no background image
   final int updateCheckInterval;
-  final String exeFilePattern;
+  final String exeFileName; // exact executable name to launch
 
   AppConfig({
     required this.appName,
@@ -12,17 +12,17 @@ class AppConfig {
     required this.localFolder,
     required this.backgroundImage,
     required this.updateCheckInterval,
-    required this.exeFilePattern,
+    required this.exeFileName,
   });
 
   factory AppConfig.fromJson(Map<String, dynamic> json) {
     return AppConfig(
-      appName: json['app_name'] ?? 'Launcher App',
-      githubRepo: GitHubRepo.fromJson(json['github_repo'] ?? {}),
-      localFolder: json['local_folder'] ?? '',
-                backgroundImage: json['background_image'] ?? 'assets/images/bg.jpg',
-      updateCheckInterval: json['update_check_interval'] ?? 300000,
-      exeFilePattern: json['exe_file_pattern'] ?? '*.exe',
+      appName: json['app_name'] as String,
+      githubRepo: GitHubRepo.fromJson(json['github_repo'] as Map<String, dynamic>),
+      localFolder: json['local_folder'] as String,
+      backgroundImage: (json['background_image'] as String?) ?? '',
+      updateCheckInterval: json['update_check_interval'] as int,
+      exeFileName: json['exe_file_name'] as String,
     );
   }
 
@@ -33,7 +33,7 @@ class AppConfig {
       'local_folder': localFolder,
       'background_image': backgroundImage,
       'update_check_interval': updateCheckInterval,
-      'exe_file_pattern': exeFilePattern,
+      'exe_file_name': exeFileName,
     };
   }
 }
@@ -49,8 +49,8 @@ class GitHubRepo {
 
   factory GitHubRepo.fromJson(Map<String, dynamic> json) {
     return GitHubRepo(
-      url: json['url'] ?? '',
-      branch: json['branch'] ?? 'main',
+      url: json['url'] as String,
+      branch: json['branch'] as String,
     );
   }
 

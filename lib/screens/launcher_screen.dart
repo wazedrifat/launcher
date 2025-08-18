@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:launcher/services/config_service.dart';
 import 'package:launcher/services/git_service.dart';
@@ -7,7 +6,6 @@ import 'package:launcher/services/process_service.dart';
 import 'package:launcher/services/connectivity_service.dart';
 import 'package:launcher/services/version_service.dart';
 import 'package:launcher/services/logger_service.dart';
-import 'package:launcher/models/app_config.dart';
 
 class LauncherScreen extends StatefulWidget {
   const LauncherScreen({super.key});
@@ -26,6 +24,7 @@ class _LauncherScreenState extends State<LauncherScreen> {
   String? _executablePath;
   String? _updateProgress;
   double _updateProgressValue = 0.0;
+  String? _latestTag; // local tag only
   Timer? _updateTimer;
   Timer? _processCheckTimer;
 
@@ -44,17 +43,20 @@ class _LauncherScreenState extends State<LauncherScreen> {
 
   Future<void> _initializeApp() async {
     LoggerService.instance.info('Initializing launcher app...', tag: 'APP');
-    
+
     try {
       await _checkConnectivity();
       await _checkRepositoryStatus();
       await _findExecutable();
+      await _refreshLocalVersion();
       await _checkForUpdates();
       _startPeriodicChecks();
-      
+
       LoggerService.instance.info('App initialization completed successfully', tag: 'APP');
     } catch (e, stackTrace) {
       LoggerService.instance.logException('App initialization failed', e, stackTrace, tag: 'APP');
+      print('[APP][ERROR] $e');
+      print('[APP][STACK] $stackTrace');
     }
   }
 
@@ -75,9 +77,27 @@ class _LauncherScreenState extends State<LauncherScreen> {
         _isRepositoryCloned = isCloned;
       });
       LoggerService.instance.info('Repository status: ${isCloned ? 'Cloned' : 'Not cloned'}', tag: 'APP');
-      
-      // Log background image path for debugging
       LoggerService.instance.info('Background image path: ${config.backgroundImage}', tag: 'APP');
+    }
+  }
+
+  Future<void> _refreshLocalVersion() async {
+    try {
+      final config = ConfigService.instance.config;
+      if (config == null || !_isRepositoryCloned) {
+        setState(() {
+          _latestTag = null;
+        });
+        return;
+      }
+      final tag = await VersionService.instance.getLocalLatestTag(config.localFolder);
+      setState(() {
+        _latestTag = tag;
+      });
+    } catch (e, stack) {
+      LoggerService.instance.logException('Failed to read local version tag', e, stack, tag: 'VERSION');
+      print('[VERSION][ERROR] $e');
+      print('[VERSION][STACK] $stack');
     }
   }
 
@@ -86,7 +106,7 @@ class _LauncherScreenState extends State<LauncherScreen> {
     if (config != null) {
       final exePath = await ProcessService.instance.findExecutable(
         config.localFolder,
-        config.exeFilePattern,
+        config.exeFileName,
       );
       setState(() {
         _executablePath = exePath;
@@ -115,10 +135,13 @@ class _LauncherScreenState extends State<LauncherScreen> {
         _isUpdateAvailable = hasUpdates;
         _isCheckingUpdate = false;
       });
-    } catch (e) {
+    } catch (e, stack) {
       setState(() {
         _isCheckingUpdate = false;
       });
+      LoggerService.instance.logException('Update check failed', e, stack, tag: 'UPDATE');
+      print('[UPDATE][ERROR] $e');
+      print('[UPDATE][STACK] $stack');
     }
   }
 
@@ -158,9 +181,9 @@ class _LauncherScreenState extends State<LauncherScreen> {
           _updateProgressValue = 0.9;
         });
 
-        // Update repository status
         await _checkRepositoryStatus();
         await _findExecutable();
+        await _refreshLocalVersion();
         await _checkForUpdates();
 
         setState(() {
@@ -168,7 +191,6 @@ class _LauncherScreenState extends State<LauncherScreen> {
           _updateProgressValue = 1.0;
         });
 
-        // Reset progress after a delay
         Future.delayed(const Duration(seconds: 2), () {
           if (mounted) {
             setState(() {
@@ -183,8 +205,10 @@ class _LauncherScreenState extends State<LauncherScreen> {
           _updateProgressValue = 0.0;
         });
       }
-    } catch (e, stackTrace) {
-      LoggerService.instance.logException('Installation failed', e, stackTrace, tag: 'INSTALL');
+    } catch (e, stack) {
+      LoggerService.instance.logException('Installation failed', e, stack, tag: 'INSTALL');
+      print('[INSTALL][ERROR] $e');
+      print('[INSTALL][STACK] $stack');
       setState(() {
         _updateProgress = 'Installation failed: $e';
         _updateProgressValue = 0.0;
@@ -218,8 +242,9 @@ class _LauncherScreenState extends State<LauncherScreen> {
         _updateProgressValue = 0.3;
       });
 
+      bool success;
       if (isInitialized) {
-        await GitService.instance.pullRepository(
+        success = await GitService.instance.pullRepository(
           config.localFolder,
           onProgress: (progress) {
             setState(() {
@@ -229,7 +254,7 @@ class _LauncherScreenState extends State<LauncherScreen> {
           },
         );
       } else {
-        await GitService.instance.cloneRepository(
+        success = await GitService.instance.cloneRepository(
           config.githubRepo.url,
           config.localFolder,
           config.githubRepo.branch,
@@ -242,12 +267,17 @@ class _LauncherScreenState extends State<LauncherScreen> {
         );
       }
 
+      if (!success) {
+        throw Exception('Git operation failed.');
+      }
+
       setState(() {
         _updateProgress = 'Finalizing update...';
         _updateProgressValue = 0.9;
       });
 
       await _findExecutable();
+      await _refreshLocalVersion();
       await _checkForUpdates();
 
       setState(() {
@@ -255,7 +285,6 @@ class _LauncherScreenState extends State<LauncherScreen> {
         _updateProgressValue = 1.0;
       });
 
-      // Reset progress after a delay
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) {
           setState(() {
@@ -264,9 +293,10 @@ class _LauncherScreenState extends State<LauncherScreen> {
           });
         }
       });
-
-    } catch (e, stackTrace) {
-      LoggerService.instance.logException('Update failed', e, stackTrace, tag: 'UPDATE');
+    } catch (e, stack) {
+      LoggerService.instance.logException('Update failed', e, stack, tag: 'UPDATE');
+      print('[UPDATE][ERROR] $e');
+      print('[UPDATE][STACK] $stack');
       setState(() {
         _updateProgress = 'Update failed: $e';
         _updateProgressValue = 0.0;
@@ -297,7 +327,12 @@ class _LauncherScreenState extends State<LauncherScreen> {
     if (config != null) {
       _updateTimer = Timer.periodic(
         Duration(milliseconds: config.updateCheckInterval),
-        (_) => _checkForUpdates(),
+        (_) async {
+          await _checkConnectivity();
+          if (_isOnline) {
+            await _checkForUpdates();
+          }
+        },
       );
     }
 
@@ -319,39 +354,37 @@ class _LauncherScreenState extends State<LauncherScreen> {
   @override
   Widget build(BuildContext context) {
     final config = ConfigService.instance.config;
-    
+
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage(config?.backgroundImage ?? 'assets/images/bg.jpg'),
-            fit: BoxFit.cover,
-            onError: (exception, stackTrace) {
-              LoggerService.instance.error('Failed to load background image: ${config?.backgroundImage}', tag: 'UI', error: exception, stackTrace: stackTrace);
-            },
-          ),
+          image: (config != null && (config.backgroundImage).isNotEmpty)
+              ? DecorationImage(
+                  image: AssetImage(config.backgroundImage),
+                  fit: BoxFit.cover,
+                  onError: (exception, stackTrace) {
+                    LoggerService.instance.error('Failed to load background image: ${config.backgroundImage}', tag: 'UI', error: exception, stackTrace: stackTrace);
+                  },
+                )
+              : null,
         ),
         child: Stack(
           children: [
-            // Main content
             Positioned(
               bottom: 40,
               right: 40,
               child: _buildMainButtons(),
             ),
-            // Status indicator
             Positioned(
               top: 40,
               right: 40,
               child: _buildStatusIndicator(),
             ),
-            // Version display
             Positioned(
               top: 40,
               left: 40,
               child: _buildVersionDisplay(),
             ),
-            // Progress indicator (when updating or installing)
             if (_isUpdating && _updateProgress != null)
               Positioned(
                 bottom: 120,
@@ -367,10 +400,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
 
   Widget _buildMainButtons() {
     if (!_isRepositoryCloned) {
-      // Show only Install button if repository is not cloned
       return _buildInstallButton();
     } else {
-      // Show Update and Open buttons if repository exists
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -384,7 +415,7 @@ class _LauncherScreenState extends State<LauncherScreen> {
 
   Widget _buildInstallButton() {
     final isDisabled = !_isOnline;
-    
+
     return ElevatedButton(
       onPressed: isDisabled ? null : _performInstall,
       style: ElevatedButton.styleFrom(
@@ -427,9 +458,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
   }
 
   Widget _buildUpdateButton() {
-    final config = ConfigService.instance.config;
     final isDisabled = _isProcessRunning || !_isOnline;
-    
+
     String buttonText = 'Check for Update';
     if (_isUpdateAvailable) {
       buttonText = 'Update Available';
@@ -440,82 +470,43 @@ class _LauncherScreenState extends State<LauncherScreen> {
     }
 
     return ElevatedButton(
-      onPressed: isDisabled ? null : () {
-        if (_isUpdateAvailable) {
-          _performUpdate();
-        } else {
-          _checkForUpdates();
-        }
-      },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: _isUpdateAvailable ? Colors.orange : Colors.blue,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        elevation: 8,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_isCheckingUpdate || _isUpdating)
-            const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            )
-          else
-            Icon(
-              _isUpdateAvailable ? Icons.system_update : Icons.refresh,
-              size: 20,
-            ),
-          const SizedBox(width: 8),
-          Text(
-            buttonText,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
+      onPressed: isDisabled
+          ? null
+          : () {
+              if (_isUpdateAvailable) {
+                _performUpdate();
+              } else {
+                _checkForUpdates();
+              }
+            },
+      child: Text(
+        buttonText,
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
       ),
     );
   }
 
   Widget _buildOpenButton() {
-    final isDisabled = _executablePath == null || _isProcessRunning;
-    
-    return ElevatedButton(
-      onPressed: isDisabled ? null : _openExecutable,
+    return ElevatedButton.icon(
+      onPressed: _executablePath == null || _isProcessRunning
+          ? null
+          : () async {
+              await _openExecutable();
+              await _checkProcessStatus();
+            },
+      icon: const Icon(Icons.play_arrow),
+      label: Text(
+        _isProcessRunning ? 'Running' : 'Open',
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      ),
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
-        elevation: 8,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            _isProcessRunning ? Icons.play_circle_filled : Icons.play_arrow,
-            size: 20,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            _isProcessRunning ? 'Running' : 'Open',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
+        minimumSize: const Size(200, 60),
       ),
     );
   }
@@ -550,6 +541,7 @@ class _LauncherScreenState extends State<LauncherScreen> {
   }
 
   Widget _buildVersionDisplay() {
+    final text = _latestTag != null ? 'v$_latestTag' : 'v-';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -559,14 +551,14 @@ class _LauncherScreenState extends State<LauncherScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
+          const Icon(
             Icons.info_outline,
             color: Colors.blue,
             size: 16,
           ),
           const SizedBox(width: 8),
           Text(
-            VersionService.instance.getVersionDisplayText(),
+            text,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 14,

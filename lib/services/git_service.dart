@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:process_run/process_run.dart';
-import 'package:launcher/models/app_config.dart';
 import 'package:launcher/services/logger_service.dart';
 
 class GitService {
@@ -11,15 +10,15 @@ class GitService {
   Future<bool> cloneRepository(String repoUrl, String localPath, String branch, {Function(String)? onProgress}) async {
     try {
       LoggerService.instance.logGitOperation('Clone repository', details: 'From $repoUrl to $localPath (branch: $branch)');
-      
+
       onProgress?.call('Cloning repository...');
-      
+
       final result = await Process.run(
         'git',
         ['clone', '-b', branch, repoUrl, localPath],
         workingDirectory: Directory.current.path,
       );
-      
+
       if (result.exitCode == 0) {
         LoggerService.instance.logGitOperation('Clone successful', details: 'Repository cloned to $localPath');
         onProgress?.call('Repository cloned successfully');
@@ -31,6 +30,8 @@ class GitService {
       }
     } catch (e, stackTrace) {
       LoggerService.instance.logGitOperation('Clone failed', error: e, stackTrace: stackTrace);
+      print('[GIT][ERROR] $e');
+      print('[GIT][STACK] $stackTrace');
       onProgress?.call('Clone failed: $e');
       return false;
     }
@@ -39,15 +40,15 @@ class GitService {
   Future<bool> pullRepository(String localPath, {Function(String)? onProgress}) async {
     try {
       LoggerService.instance.logGitOperation('Pull repository', details: 'From $localPath');
-      
+
       onProgress?.call('Pulling latest changes...');
-      
+
       final result = await Process.run(
         'git',
         ['pull', 'origin'],
         workingDirectory: localPath,
       );
-      
+
       if (result.exitCode == 0) {
         LoggerService.instance.logGitOperation('Pull successful', details: 'Repository updated from $localPath');
         onProgress?.call('Repository updated successfully');
@@ -59,6 +60,8 @@ class GitService {
       }
     } catch (e, stackTrace) {
       LoggerService.instance.logGitOperation('Pull failed', error: e, stackTrace: stackTrace);
+      print('[GIT][ERROR] $e');
+      print('[GIT][STACK] $stackTrace');
       onProgress?.call('Pull failed: $e');
       return false;
     }
@@ -75,7 +78,9 @@ class GitService {
         return result.stdout.toString().trim();
       }
       return null;
-    } catch (e) {
+    } catch (e, stack) {
+      print('[GIT][ERROR] $e');
+      print('[GIT][STACK] $stack');
       return null;
     }
   }
@@ -94,7 +99,9 @@ class GitService {
         }
       }
       return null;
-    } catch (e) {
+    } catch (e, stack) {
+      print('[GIT][ERROR] $e');
+      print('[GIT][STACK] $stack');
       return null;
     }
   }
@@ -103,13 +110,15 @@ class GitService {
     try {
       final localHash = await getLatestCommitHash(localPath);
       final remoteHash = await getRemoteCommitHash(repoUrl, branch);
-      
+
       if (localHash == null || remoteHash == null) {
         return false;
       }
-      
+
       return localHash != remoteHash;
-    } catch (e) {
+    } catch (e, stack) {
+      print('[GIT][ERROR] $e');
+      print('[GIT][STACK] $stack');
       return false;
     }
   }
@@ -118,7 +127,9 @@ class GitService {
     try {
       final gitDir = Directory('$localPath/.git');
       return gitDir.existsSync();
-    } catch (e) {
+    } catch (e, stack) {
+      print('[GIT][ERROR] $e');
+      print('[GIT][STACK] $stack');
       return false;
     }
   }
