@@ -8,8 +8,22 @@ class GitService {
   factory GitService() => instance;
   GitService._internal();
 
+  Future<void> _ensureDir(String path) async {
+    try {
+      final dir = Directory(path);
+      if (!dir.existsSync()) {
+        LoggerService.instance.logGitOperation('Create directory', details: path);
+        await dir.create(recursive: true);
+      }
+    } catch (e, stack) {
+      LoggerService.instance.logGitOperation('Create directory failed', error: e, stackTrace: stack);
+      rethrow;
+    }
+  }
+
   Future<bool> cloneRepository(String repoUrl, String localPath, String branch, {Function(String, double?)? onProgress}) async {
     try {
+      await _ensureDir(localPath);
       LoggerService.instance.logGitOperation('Clone repository', details: 'From $repoUrl to $localPath (branch: $branch)');
       onProgress?.call('Starting clone...', 0.0);
 
@@ -20,7 +34,6 @@ class GitService {
         runInShell: true,
       );
 
-      // Git prints progress to stderr
       final percentReg = RegExp(r'(\d+)%');
       process.stderr.transform(const SystemEncoding().decoder).transform(const LineSplitter()).listen((line) {
         LoggerService.instance.logGitOperation('clone: $line');
@@ -58,6 +71,7 @@ class GitService {
 
   Future<bool> pullRepository(String localPath, {Function(String, double?)? onProgress}) async {
     try {
+      await _ensureDir(localPath);
       LoggerService.instance.logGitOperation('Pull repository', details: 'From $localPath');
       onProgress?.call('Fetching latest changes...', 0.0);
 
