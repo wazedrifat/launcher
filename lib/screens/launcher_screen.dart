@@ -21,6 +21,7 @@ class _LauncherScreenState extends State<LauncherScreen> {
   bool _isProcessRunning = false;
   bool _isOnline = false;
   bool _isRepositoryCloned = false;
+  bool _isLaunching = false; // opening exe loader
   String? _executablePath;
   String? _updateProgress;
   double _updateProgressValue = 0.0;
@@ -309,17 +310,37 @@ class _LauncherScreenState extends State<LauncherScreen> {
   }
 
   Future<void> _openExecutable() async {
-    if (_executablePath == null) return;
+    if (_executablePath == null || _isLaunching) return;
 
-    final isRunning = await ProcessService.instance.isProcessRunning(_executablePath!);
-    if (isRunning) {
+    setState(() {
+      _isLaunching = true;
+    });
+
+    try {
+      final isRunning = await ProcessService.instance.isProcessRunning(_executablePath!);
+      if (isRunning) {
+        setState(() {
+          _isProcessRunning = true;
+        });
+        return;
+      }
+
+      final launched = await ProcessService.instance.launchExecutable(_executablePath!);
+      // Give the process a moment to appear in tasklist
+      await Future.delayed(const Duration(milliseconds: 400));
+      final nowRunning = await ProcessService.instance.isProcessRunning(_executablePath!);
       setState(() {
-        _isProcessRunning = true;
+        _isProcessRunning = launched && nowRunning;
       });
-      return;
+    } catch (e, stack) {
+      LoggerService.instance.logException('Failed to open executable', e, stack, tag: 'PROCESS');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLaunching = false;
+        });
+      }
     }
-
-    await ProcessService.instance.launchExecutable(_executablePath!);
   }
 
   void _startPeriodicChecks() {
@@ -421,10 +442,11 @@ class _LauncherScreenState extends State<LauncherScreen> {
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.orange,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
+        minimumSize: const Size(200, 60),
         elevation: 8,
       ),
       child: Row(
@@ -432,8 +454,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
         children: [
           if (_isUpdating)
             const SizedBox(
-              width: 16,
-              height: 16,
+              width: 20,
+              height: 20,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
                 valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
@@ -442,14 +464,14 @@ class _LauncherScreenState extends State<LauncherScreen> {
           else
             const Icon(
               Icons.download,
-              size: 20,
+              size: 22,
             ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Text(
             _isUpdating ? 'Installing...' : 'Install',
             style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ],
@@ -458,18 +480,20 @@ class _LauncherScreenState extends State<LauncherScreen> {
   }
 
   Widget _buildUpdateButton() {
-    final isDisabled = _isProcessRunning || !_isOnline;
+    final isDisabled = _isProcessRunning || !_isOnline || _isLaunching;
 
-    String buttonText = 'Check for Update';
-    if (_isUpdateAvailable) {
-      buttonText = 'Update Available';
-    } else if (_isCheckingUpdate) {
-      buttonText = 'Checking...';
-    } else if (_isUpdating) {
-      buttonText = 'Updating...';
-    }
+    // Colors and icon based on state
+    final isUpdate = _isUpdateAvailable;
+    final Color bgColor = isUpdate ? Colors.orange : Colors.blue;
+    final String labelText = _isUpdating
+        ? 'Updating...'
+        : _isCheckingUpdate
+            ? 'Checking...'
+            : isUpdate
+                ? 'Update Available'
+                : 'Check for Update';
 
-    return ElevatedButton(
+    return ElevatedButton.icon(
       onPressed: isDisabled
           ? null
           : () {
@@ -479,24 +503,54 @@ class _LauncherScreenState extends State<LauncherScreen> {
                 _checkForUpdates();
               }
             },
-      child: Text(
-        buttonText,
+      icon: (_isUpdating || _isCheckingUpdate)
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            )
+          : const Icon(Icons.update),
+      label: Text(
+        labelText,
         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: bgColor,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        minimumSize: const Size(200, 60),
       ),
     );
   }
 
   Widget _buildOpenButton() {
+    final bool disabled = _executablePath == null || _isProcessRunning || _isLaunching;
+
     return ElevatedButton.icon(
-      onPressed: _executablePath == null || _isProcessRunning
+      onPressed: disabled
           ? null
           : () async {
               await _openExecutable();
               await _checkProcessStatus();
             },
-      icon: const Icon(Icons.play_arrow),
+      icon: _isLaunching
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            )
+          : const Icon(Icons.play_arrow),
       label: Text(
-        _isProcessRunning ? 'Running' : 'Open',
+        _isProcessRunning ? 'Running' : (_isLaunching ? 'Opening...' : 'Open'),
         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
       ),
       style: ElevatedButton.styleFrom(
