@@ -33,18 +33,32 @@ class ProcessService {
     }
   }
 
+  String _extractImageName(String exePath) {
+    try {
+      // Works for both C:\path\app.exe and C:/path/app.exe
+      final parts = exePath.split(RegExp(r'[\\/]'));
+      return parts.isNotEmpty ? parts.last : exePath;
+    } catch (_) {
+      return exePath;
+    }
+  }
+
   Future<bool> isProcessRunning(String exePath) async {
     try {
+      final imageName = _extractImageName(exePath);
+      LoggerService.instance.logProcessOperation('Check if process is running', details: 'Executable: $imageName');
+
       final result = await Process.run(
         'tasklist',
-        ['/FI', 'IMAGENAME eq ${exePath.split('\\').last}'],
+        ['/FI', 'IMAGENAME eq $imageName', '/FO', 'LIST'],
         workingDirectory: Directory.current.path,
       );
 
       if (result.exitCode == 0) {
         final output = result.stdout.toString();
-        return output.contains(exePath.split('\\').last) &&
-            !output.contains('INFO: No tasks are running');
+        final isRunning = output.contains(imageName) && !output.contains('INFO: No tasks are running');
+        LoggerService.instance.info('Process $imageName running: $isRunning', tag: 'PROCESS');
+        return isRunning;
       }
       return false;
     } catch (e, stack) {

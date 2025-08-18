@@ -168,10 +168,10 @@ class _LauncherScreenState extends State<LauncherScreen> {
         config.githubRepo.url,
         config.localFolder,
         config.githubRepo.branch,
-        onProgress: (progress) {
+        onProgress: (progress, percent) {
           setState(() {
             _updateProgress = progress;
-            _updateProgressValue = 0.7;
+            _updateProgressValue = percent ?? _updateProgressValue; // keep last when null
           });
         },
       );
@@ -247,10 +247,10 @@ class _LauncherScreenState extends State<LauncherScreen> {
       if (isInitialized) {
         success = await GitService.instance.pullRepository(
           config.localFolder,
-          onProgress: (progress) {
+          onProgress: (progress, percent) {
             setState(() {
               _updateProgress = progress;
-              _updateProgressValue = 0.7;
+              _updateProgressValue = percent ?? _updateProgressValue;
             });
           },
         );
@@ -259,10 +259,10 @@ class _LauncherScreenState extends State<LauncherScreen> {
           config.githubRepo.url,
           config.localFolder,
           config.githubRepo.branch,
-          onProgress: (progress) {
+          onProgress: (progress, percent) {
             setState(() {
               _updateProgress = progress;
-              _updateProgressValue = 0.7;
+              _updateProgressValue = percent ?? _updateProgressValue;
             });
           },
         );
@@ -625,6 +625,7 @@ class _LauncherScreenState extends State<LauncherScreen> {
   }
 
   Widget _buildProgressIndicator() {
+    final bool isDeterminate = _updateProgressValue > 0.0 && _updateProgressValue <= 1.0;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -645,12 +646,18 @@ class _LauncherScreenState extends State<LauncherScreen> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
-          LinearProgressIndicator(
-            value: _updateProgressValue,
-            backgroundColor: Colors.grey[600],
-            valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
-            minHeight: 8,
-          ),
+          isDeterminate
+              ? LinearProgressIndicator(
+                  value: _updateProgressValue,
+                  backgroundColor: Colors.grey[600],
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+                  minHeight: 8,
+                )
+              : const LinearProgressIndicator(
+                  backgroundColor: Color(0xFF757575),
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                  minHeight: 8,
+                ),
         ],
       ),
     );

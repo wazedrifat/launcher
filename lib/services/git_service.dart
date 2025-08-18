@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:process_run/process_run.dart';
 import 'package:launcher/services/logger_service.dart';
@@ -7,62 +8,97 @@ class GitService {
   factory GitService() => instance;
   GitService._internal();
 
-  Future<bool> cloneRepository(String repoUrl, String localPath, String branch, {Function(String)? onProgress}) async {
+  Future<bool> cloneRepository(String repoUrl, String localPath, String branch, {Function(String, double?)? onProgress}) async {
     try {
       LoggerService.instance.logGitOperation('Clone repository', details: 'From $repoUrl to $localPath (branch: $branch)');
+      onProgress?.call('Starting clone...', 0.0);
 
-      onProgress?.call('Cloning repository...');
-
-      final result = await Process.run(
+      final process = await Process.start(
         'git',
-        ['clone', '-b', branch, repoUrl, localPath],
+        ['-c', 'core.longpaths=true', 'clone', '--progress', '-b', branch, repoUrl, localPath],
         workingDirectory: Directory.current.path,
+        runInShell: true,
       );
 
-      if (result.exitCode == 0) {
+      // Git prints progress to stderr
+      final percentReg = RegExp(r'(\d+)%');
+      process.stderr.transform(const SystemEncoding().decoder).transform(const LineSplitter()).listen((line) {
+        LoggerService.instance.logGitOperation('clone: $line');
+        double? p;
+        final m = percentReg.firstMatch(line);
+        if (m != null) {
+          final val = int.tryParse(m.group(1)!);
+          if (val != null) p = val / 100.0;
+        }
+        onProgress?.call(line, p);
+      });
+      process.stdout.transform(const SystemEncoding().decoder).transform(const LineSplitter()).listen((line) {
+        LoggerService.instance.logGitOperation('clone(out): $line');
+      });
+
+      final exit = await process.exitCode;
+      if (exit == 0) {
+        onProgress?.call('Repository cloned successfully', 1.0);
         LoggerService.instance.logGitOperation('Clone successful', details: 'Repository cloned to $localPath');
-        onProgress?.call('Repository cloned successfully');
         return true;
       } else {
-        LoggerService.instance.logGitOperation('Clone failed', details: 'Exit code: ${result.exitCode}, Error: ${result.stderr}');
-        onProgress?.call('Clone failed: ${result.stderr}');
+        final err = await process.stderr.transform(const SystemEncoding().decoder).join();
+        onProgress?.call('Clone failed: $err', null);
+        LoggerService.instance.logGitOperation('Clone failed', details: 'Exit code: $exit, Error: $err');
         return false;
       }
     } catch (e, stackTrace) {
       LoggerService.instance.logGitOperation('Clone failed', error: e, stackTrace: stackTrace);
       print('[GIT][ERROR] $e');
       print('[GIT][STACK] $stackTrace');
-      onProgress?.call('Clone failed: $e');
+      onProgress?.call('Clone failed: $e', null);
       return false;
     }
   }
 
-  Future<bool> pullRepository(String localPath, {Function(String)? onProgress}) async {
+  Future<bool> pullRepository(String localPath, {Function(String, double?)? onProgress}) async {
     try {
       LoggerService.instance.logGitOperation('Pull repository', details: 'From $localPath');
+      onProgress?.call('Fetching latest changes...', 0.0);
 
-      onProgress?.call('Pulling latest changes...');
-
-      final result = await Process.run(
+      final process = await Process.start(
         'git',
-        ['pull', 'origin'],
+        ['-c', 'core.longpaths=true', 'pull', '--progress', 'origin'],
         workingDirectory: localPath,
+        runInShell: true,
       );
 
-      if (result.exitCode == 0) {
+      final percentReg = RegExp(r'(\d+)%');
+      process.stderr.transform(const SystemEncoding().decoder).transform(const LineSplitter()).listen((line) {
+        LoggerService.instance.logGitOperation('pull: $line');
+        double? p;
+        final m = percentReg.firstMatch(line);
+        if (m != null) {
+          final val = int.tryParse(m.group(1)!);
+          if (val != null) p = val / 100.0;
+        }
+        onProgress?.call(line, p);
+      });
+      process.stdout.transform(const SystemEncoding().decoder).transform(const LineSplitter()).listen((line) {
+        LoggerService.instance.logGitOperation('pull(out): $line');
+      });
+
+      final exit = await process.exitCode;
+      if (exit == 0) {
+        onProgress?.call('Repository updated successfully', 1.0);
         LoggerService.instance.logGitOperation('Pull successful', details: 'Repository updated from $localPath');
-        onProgress?.call('Repository updated successfully');
         return true;
       } else {
-        LoggerService.instance.logGitOperation('Pull failed', details: 'Exit code: ${result.exitCode}, Error: ${result.stderr}');
-        onProgress?.call('Pull failed: ${result.stderr}');
+        final err = await process.stderr.transform(const SystemEncoding().decoder).join();
+        onProgress?.call('Pull failed: $err', null);
+        LoggerService.instance.logGitOperation('Pull failed', details: 'Exit code: $exit, Error: $err');
         return false;
       }
     } catch (e, stackTrace) {
       LoggerService.instance.logGitOperation('Pull failed', error: e, stackTrace: stackTrace);
       print('[GIT][ERROR] $e');
       print('[GIT][STACK] $stackTrace');
-      onProgress?.call('Pull failed: $e');
+      onProgress?.call('Pull failed: $e', null);
       return false;
     }
   }
