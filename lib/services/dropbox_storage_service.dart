@@ -3,8 +3,10 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:launcher/models/app_config.dart';
+import 'package:launcher/services/archive_service.dart';
 import 'package:launcher/services/credential_storage_service.dart';
 import 'package:launcher/services/logger_service.dart';
+import 'package:launcher/services/oauth2_service.dart';
 import 'package:launcher/services/storage_service.dart';
 
 /// Dropbox implementation of StorageService
@@ -31,9 +33,9 @@ class DropboxStorageService extends StorageService {
 
       if (credentials == null) {
         LoggerService.instance.info(
-            'No Dropbox credentials found. User needs to authenticate.',
+            'No Dropbox credentials found. Triggering OAuth2 authentication.',
             tag: 'DROPBOX');
-        return false;
+        return await authenticateUser();
       }
 
       _accessToken = credentials['access_token'] as String?;
@@ -49,11 +51,32 @@ class DropboxStorageService extends StorageService {
   /// Trigger OAuth2 authentication flow for Dropbox
   Future<bool> authenticateUser() async {
     try {
-      // TODO: Implement Dropbox OAuth2 flow
-      LoggerService.instance.info(
-          'Dropbox OAuth2 flow should be implemented here',
-          tag: 'DROPBOX');
-      return false;
+      LoggerService.instance
+          .info('Starting Dropbox OAuth2 authentication flow', tag: 'DROPBOX');
+
+      // Note: This requires an app secret for OAuth2 flow
+      const appSecret = ''; // This should be configured or obtained securely
+
+      if (appSecret.isEmpty) {
+        LoggerService.instance.error(
+            'Dropbox app secret not configured. OAuth2 authentication requires both app key and secret.',
+            tag: 'DROPBOX');
+        return false;
+      }
+
+      final success = await OAuth2Service.instance.authenticateDropbox(
+        _config.appKey,
+        appSecret,
+      );
+
+      if (success) {
+        // Reload credentials after successful authentication
+        final credentials = await CredentialStorageService.instance
+            .getCredentials(StorageType.dropbox);
+        _accessToken = credentials?['access_token'] as String?;
+      }
+
+      return success;
     } catch (e, stack) {
       LoggerService.instance
           .logException('Dropbox OAuth2 flow failed', e, stack, tag: 'DROPBOX');
@@ -179,9 +202,31 @@ class DropboxStorageService extends StorageService {
       final zipPath = '$localPath/app.zip';
       if (await _downloadFile('app.zip', zipPath, onProgress: onProgress)) {
         onProgress?.call('Extracting files...', 0.8);
-        // TODO: Extract zip file
-        // For now, assume the zip contains the executable directly
-        return true;
+
+        // Extract zip file
+        LoggerService.instance.info(
+            'Downloaded app.zip, starting extraction to $localPath',
+            tag: 'DROPBOX');
+
+        final extractSuccess = await ArchiveService.instance.extractZipFile(
+          zipPath,
+          localPath,
+          onProgress: onProgress,
+        );
+
+        // Clean up temporary zip file
+        await ArchiveService.instance.cleanupTempFile(zipPath);
+
+        if (extractSuccess) {
+          LoggerService.instance.info(
+              'Successfully downloaded and extracted app.zip to $localPath',
+              tag: 'DROPBOX');
+          return true;
+        } else {
+          LoggerService.instance
+              .error('Failed to extract downloaded app.zip', tag: 'DROPBOX');
+          return false;
+        }
       }
 
       return false;

@@ -3,8 +3,10 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:launcher/models/app_config.dart';
+import 'package:launcher/services/archive_service.dart';
 import 'package:launcher/services/credential_storage_service.dart';
 import 'package:launcher/services/logger_service.dart';
+import 'package:launcher/services/oauth2_service.dart';
 import 'package:launcher/services/storage_service.dart';
 
 /// Google Drive implementation of StorageService
@@ -30,10 +32,9 @@ class GoogleDriveStorageService extends StorageService {
 
       if (credentials == null) {
         LoggerService.instance.info(
-            'No Google Drive credentials found. User needs to authenticate.',
+            'No Google Drive credentials found. Triggering OAuth2 authentication.',
             tag: 'DRIVE');
-        // TODO: Trigger OAuth2 flow in UI
-        return false;
+        return await authenticateUser();
       }
 
       // Check if token is expired
@@ -64,12 +65,7 @@ class GoogleDriveStorageService extends StorageService {
         return false;
       }
 
-      // TODO: Implement token refresh with Google OAuth2
-      // For now, just return false to trigger re-authentication
-      LoggerService.instance.info(
-          'Token refresh not yet implemented. User needs to re-authenticate.',
-          tag: 'DRIVE');
-      return false;
+      return await OAuth2Service.instance.refreshGoogleDriveToken(credentials);
     } catch (e, stack) {
       LoggerService.instance.logException(
           'Google Drive token refresh failed', e, stack,
@@ -82,19 +78,34 @@ class GoogleDriveStorageService extends StorageService {
   /// This should be called from the UI when user wants to connect Google Drive
   Future<bool> authenticateUser() async {
     try {
-      // TODO: Implement OAuth2 flow
-      // This is a placeholder for the actual OAuth2 implementation
-      LoggerService.instance
-          .info('OAuth2 flow should be implemented here', tag: 'DRIVE');
+      LoggerService.instance.info(
+          'Starting Google Drive OAuth2 authentication flow',
+          tag: 'DRIVE');
 
-      // For demo purposes, return false
-      // In real implementation, this would:
-      // 1. Open OAuth2 authorization URL
-      // 2. Handle callback with authorization code
-      // 3. Exchange code for access/refresh tokens
-      // 4. Store tokens using CredentialStorageService
+      // Note: This requires a client secret for OAuth2 flow
+      // In a real app, you might want to use a different flow or store client secret securely
+      const clientSecret = ''; // This should be configured or obtained securely
 
-      return false;
+      if (clientSecret.isEmpty) {
+        LoggerService.instance.error(
+            'Google Drive client secret not configured. OAuth2 authentication requires both client ID and secret.',
+            tag: 'DRIVE');
+        return false;
+      }
+
+      final success = await OAuth2Service.instance.authenticateGoogleDrive(
+        _config.clientId,
+        clientSecret,
+      );
+
+      if (success) {
+        // Reload credentials after successful authentication
+        final credentials = await CredentialStorageService.instance
+            .getCredentials(StorageType.googleDrive);
+        _accessToken = credentials?['access_token'] as String?;
+      }
+
+      return success;
     } catch (e, stack) {
       LoggerService.instance.logException(
           'Google Drive OAuth2 flow failed', e, stack,
@@ -220,9 +231,31 @@ class GoogleDriveStorageService extends StorageService {
         if (await _downloadFile(metadata['id'], zipPath,
             onProgress: onProgress)) {
           onProgress?.call('Extracting files...', 0.8);
-          // TODO: Extract zip file
-          // For now, assume the zip contains the executable directly
-          return true;
+
+          // Extract zip file
+          LoggerService.instance.info(
+              'Downloaded app.zip, starting extraction to $localPath',
+              tag: 'DRIVE');
+
+          final extractSuccess = await ArchiveService.instance.extractZipFile(
+            zipPath,
+            localPath,
+            onProgress: onProgress,
+          );
+
+          // Clean up temporary zip file
+          await ArchiveService.instance.cleanupTempFile(zipPath);
+
+          if (extractSuccess) {
+            LoggerService.instance.info(
+                'Successfully downloaded and extracted app.zip to $localPath',
+                tag: 'DRIVE');
+            return true;
+          } else {
+            LoggerService.instance
+                .error('Failed to extract downloaded app.zip', tag: 'DRIVE');
+            return false;
+          }
         }
       }
 

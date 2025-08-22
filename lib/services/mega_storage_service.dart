@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:launcher/models/app_config.dart';
+import 'package:launcher/services/archive_service.dart';
 import 'package:launcher/services/credential_storage_service.dart';
 import 'package:launcher/services/logger_service.dart';
 import 'package:launcher/services/storage_service.dart';
@@ -275,9 +276,32 @@ class MegaStorageService extends StorageService {
 
       if (success) {
         onProgress?.call('Extracting files...', 0.8);
-        // TODO: Extract zip file
-        // For now, assume the zip contains the executable directly
-        return true;
+
+        // Extract zip file
+        LoggerService.instance.info(
+            'Downloaded app.zip, starting extraction to $localPath',
+            tag: 'MEGA');
+
+        final zipPath = '$localPath/app.zip';
+        final extractSuccess = await ArchiveService.instance.extractZipFile(
+          zipPath,
+          localPath,
+          onProgress: onProgress,
+        );
+
+        // Clean up temporary zip file
+        await ArchiveService.instance.cleanupTempFile(zipPath);
+
+        if (extractSuccess) {
+          LoggerService.instance.info(
+              'Successfully downloaded and extracted app.zip to $localPath',
+              tag: 'MEGA');
+          return true;
+        } else {
+          LoggerService.instance
+              .error('Failed to extract downloaded app.zip', tag: 'MEGA');
+          return false;
+        }
       }
 
       return false;

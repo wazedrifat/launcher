@@ -3,8 +3,10 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:launcher/models/app_config.dart';
+import 'package:launcher/services/archive_service.dart';
 import 'package:launcher/services/credential_storage_service.dart';
 import 'package:launcher/services/logger_service.dart';
+import 'package:launcher/services/oauth2_service.dart';
 import 'package:launcher/services/storage_service.dart';
 
 /// OneDrive implementation of StorageService
@@ -31,9 +33,9 @@ class OneDriveStorageService extends StorageService {
 
       if (credentials == null) {
         LoggerService.instance.info(
-            'No OneDrive credentials found. User needs to authenticate.',
+            'No OneDrive credentials found. Triggering OAuth2 authentication.',
             tag: 'ONEDRIVE');
-        return false;
+        return await authenticateUser();
       }
 
       // Check if token is expired
@@ -64,11 +66,7 @@ class OneDriveStorageService extends StorageService {
         return false;
       }
 
-      // TODO: Implement token refresh with Microsoft Graph
-      LoggerService.instance.info(
-          'Token refresh not yet implemented. User needs to re-authenticate.',
-          tag: 'ONEDRIVE');
-      return false;
+      return await OAuth2Service.instance.refreshOneDriveToken(credentials);
     } catch (e, stack) {
       LoggerService.instance.logException(
           'OneDrive token refresh failed', e, stack,
@@ -80,11 +78,21 @@ class OneDriveStorageService extends StorageService {
   /// Trigger OAuth2 authentication flow for OneDrive
   Future<bool> authenticateUser() async {
     try {
-      // TODO: Implement Microsoft Graph OAuth2 flow
       LoggerService.instance.info(
-          'Microsoft Graph OAuth2 flow should be implemented here',
+          'Starting OneDrive OAuth2 authentication flow',
           tag: 'ONEDRIVE');
-      return false;
+
+      final success =
+          await OAuth2Service.instance.authenticateOneDrive(_config.clientId);
+
+      if (success) {
+        // Reload credentials after successful authentication
+        final credentials = await CredentialStorageService.instance
+            .getCredentials(StorageType.oneDrive);
+        _accessToken = credentials?['access_token'] as String?;
+      }
+
+      return success;
     } catch (e, stack) {
       LoggerService.instance.logException(
           'OneDrive OAuth2 flow failed', e, stack,
@@ -262,9 +270,31 @@ class OneDriveStorageService extends StorageService {
       final zipPath = '$localPath/app.zip';
       if (await _downloadFile(downloadUrl, zipPath, onProgress: onProgress)) {
         onProgress?.call('Extracting files...', 0.8);
-        // TODO: Extract zip file
-        // For now, assume the zip contains the executable directly
-        return true;
+
+        // Extract zip file
+        LoggerService.instance.info(
+            'Downloaded app.zip, starting extraction to $localPath',
+            tag: 'ONEDRIVE');
+
+        final extractSuccess = await ArchiveService.instance.extractZipFile(
+          zipPath,
+          localPath,
+          onProgress: onProgress,
+        );
+
+        // Clean up temporary zip file
+        await ArchiveService.instance.cleanupTempFile(zipPath);
+
+        if (extractSuccess) {
+          LoggerService.instance.info(
+              'Successfully downloaded and extracted app.zip to $localPath',
+              tag: 'ONEDRIVE');
+          return true;
+        } else {
+          LoggerService.instance
+              .error('Failed to extract downloaded app.zip', tag: 'ONEDRIVE');
+          return false;
+        }
       }
 
       return false;
