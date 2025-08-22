@@ -1,11 +1,13 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:launcher/services/config_service.dart';
-import 'package:launcher/services/git_service.dart';
-import 'package:launcher/services/process_service.dart';
 import 'package:launcher/services/connectivity_service.dart';
-import 'package:launcher/services/version_service.dart';
 import 'package:launcher/services/logger_service.dart';
+import 'package:launcher/services/process_service.dart';
+import 'package:launcher/services/storage_service.dart';
+import 'package:launcher/services/storage_service_factory.dart';
+import 'package:launcher/services/version_service.dart';
 
 class LauncherScreen extends StatefulWidget {
   const LauncherScreen({super.key});
@@ -28,6 +30,7 @@ class _LauncherScreenState extends State<LauncherScreen> {
   String? _latestTag; // local tag only
   Timer? _updateTimer;
   Timer? _processCheckTimer;
+  StorageService? _storageService;
 
   @override
   void initState() {
@@ -46,6 +49,7 @@ class _LauncherScreenState extends State<LauncherScreen> {
     LoggerService.instance.info('Initializing launcher app...', tag: 'APP');
 
     try {
+      await _initializeStorageService();
       await _checkConnectivity();
       await _checkRepositoryStatus();
       await _findExecutable();
@@ -53,11 +57,32 @@ class _LauncherScreenState extends State<LauncherScreen> {
       await _checkForUpdates();
       _startPeriodicChecks();
 
-      LoggerService.instance.info('App initialization completed successfully', tag: 'APP');
+      LoggerService.instance
+          .info('App initialization completed successfully', tag: 'APP');
     } catch (e, stackTrace) {
-      LoggerService.instance.logException('App initialization failed', e, stackTrace, tag: 'APP');
+      LoggerService.instance
+          .logException('App initialization failed', e, stackTrace, tag: 'APP');
       print('[APP][ERROR] $e');
       print('[APP][STACK] $stackTrace');
+    }
+  }
+
+  Future<void> _initializeStorageService() async {
+    try {
+      final config = ConfigService.instance.config;
+      if (config != null) {
+        _storageService =
+            StorageServiceFactory.createStorageService(config.storage);
+        LoggerService.instance.info(
+            'Storage service initialized: ${_storageService?.sourceDescription}',
+            tag: 'APP');
+      }
+    } catch (e, stackTrace) {
+      LoggerService.instance.logException(
+          'Storage service initialization failed', e, stackTrace,
+          tag: 'APP');
+      print('[STORAGE][ERROR] $e');
+      print('[STORAGE][STACK] $stackTrace');
     }
   }
 
@@ -70,15 +95,18 @@ class _LauncherScreenState extends State<LauncherScreen> {
 
   Future<void> _checkRepositoryStatus() async {
     final config = ConfigService.instance.config;
-    if (config != null) {
-      final isCloned = await GitService.instance.isRepositoryInitialized(
+    if (config != null && _storageService != null) {
+      final isCloned = await _storageService!.isRepositoryInitialized(
         config.localFolder,
       );
       setState(() {
         _isRepositoryCloned = isCloned;
       });
-      LoggerService.instance.info('Repository status: ${isCloned ? 'Cloned' : 'Not cloned'}', tag: 'APP');
-      LoggerService.instance.info('Background image path: ${config.backgroundImage}', tag: 'APP');
+      LoggerService.instance.info(
+          'Repository status: ${isCloned ? 'Cloned' : 'Not cloned'}',
+          tag: 'APP');
+      LoggerService.instance
+          .info('Background image path: ${config.backgroundImage}', tag: 'APP');
     }
   }
 
@@ -91,12 +119,15 @@ class _LauncherScreenState extends State<LauncherScreen> {
         });
         return;
       }
-      final tag = await VersionService.instance.getLocalLatestTag(config.localFolder);
+      final tag =
+          await VersionService.instance.getLocalLatestTag(config.localFolder);
       setState(() {
         _latestTag = tag;
       });
     } catch (e, stack) {
-      LoggerService.instance.logException('Failed to read local version tag', e, stack, tag: 'VERSION');
+      LoggerService.instance.logException(
+          'Failed to read local version tag', e, stack,
+          tag: 'VERSION');
       print('[VERSION][ERROR] $e');
       print('[VERSION][STACK] $stack');
     }
@@ -119,17 +150,15 @@ class _LauncherScreenState extends State<LauncherScreen> {
     if (!_isOnline) return;
 
     final config = ConfigService.instance.config;
-    if (config == null) return;
+    if (config == null || _storageService == null) return;
 
     setState(() {
       _isCheckingUpdate = true;
     });
 
     try {
-      final hasUpdates = await GitService.instance.hasUpdates(
-        config.githubRepo.url,
+      final hasUpdates = await _storageService!.hasUpdates(
         config.localFolder,
-        config.githubRepo.branch,
       );
 
       setState(() {
@@ -140,7 +169,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
       setState(() {
         _isCheckingUpdate = false;
       });
-      LoggerService.instance.logException('Update check failed', e, stack, tag: 'UPDATE');
+      LoggerService.instance
+          .logException('Update check failed', e, stack, tag: 'UPDATE');
       print('[UPDATE][ERROR] $e');
       print('[UPDATE][STACK] $stack');
     }
@@ -150,7 +180,7 @@ class _LauncherScreenState extends State<LauncherScreen> {
     if (!_isOnline) return;
 
     final config = ConfigService.instance.config;
-    if (config == null) return;
+    if (config == null || _storageService == null) return;
 
     setState(() {
       _isUpdating = true;
@@ -160,18 +190,17 @@ class _LauncherScreenState extends State<LauncherScreen> {
 
     try {
       setState(() {
-        _updateProgress = 'Cloning repository...';
+        _updateProgress = 'Downloading repository...';
         _updateProgressValue = 0.3;
       });
 
-      final success = await GitService.instance.cloneRepository(
-        config.githubRepo.url,
+      final success = await _storageService!.downloadRepository(
         config.localFolder,
-        config.githubRepo.branch,
         onProgress: (progress, percent) {
           setState(() {
             _updateProgress = progress;
-            _updateProgressValue = percent ?? _updateProgressValue; // keep last when null
+            _updateProgressValue =
+                percent ?? _updateProgressValue; // keep last when null
           });
         },
       );
@@ -207,7 +236,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
         });
       }
     } catch (e, stack) {
-      LoggerService.instance.logException('Installation failed', e, stack, tag: 'INSTALL');
+      LoggerService.instance
+          .logException('Installation failed', e, stack, tag: 'INSTALL');
       print('[INSTALL][ERROR] $e');
       print('[INSTALL][STACK] $stack');
       setState(() {
@@ -225,7 +255,7 @@ class _LauncherScreenState extends State<LauncherScreen> {
     if (!_isOnline) return;
 
     final config = ConfigService.instance.config;
-    if (config == null) return;
+    if (config == null || _storageService == null) return;
 
     setState(() {
       _isUpdating = true;
@@ -234,18 +264,20 @@ class _LauncherScreenState extends State<LauncherScreen> {
     });
 
     try {
-      final isInitialized = await GitService.instance.isRepositoryInitialized(
+      final isInitialized = await _storageService!.isRepositoryInitialized(
         config.localFolder,
       );
 
       setState(() {
-        _updateProgress = isInitialized ? 'Pulling latest changes...' : 'Cloning repository...';
+        _updateProgress = isInitialized
+            ? 'Updating from source...'
+            : 'Downloading from source...';
         _updateProgressValue = 0.3;
       });
 
       bool success;
       if (isInitialized) {
-        success = await GitService.instance.pullRepository(
+        success = await _storageService!.updateRepository(
           config.localFolder,
           onProgress: (progress, percent) {
             setState(() {
@@ -255,10 +287,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
           },
         );
       } else {
-        success = await GitService.instance.cloneRepository(
-          config.githubRepo.url,
+        success = await _storageService!.downloadRepository(
           config.localFolder,
-          config.githubRepo.branch,
           onProgress: (progress, percent) {
             setState(() {
               _updateProgress = progress;
@@ -269,7 +299,7 @@ class _LauncherScreenState extends State<LauncherScreen> {
       }
 
       if (!success) {
-        throw Exception('Git operation failed.');
+        throw Exception('Storage operation failed.');
       }
 
       setState(() {
@@ -295,7 +325,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
         }
       });
     } catch (e, stack) {
-      LoggerService.instance.logException('Update failed', e, stack, tag: 'UPDATE');
+      LoggerService.instance
+          .logException('Update failed', e, stack, tag: 'UPDATE');
       print('[UPDATE][ERROR] $e');
       print('[UPDATE][STACK] $stack');
       setState(() {
@@ -317,7 +348,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
     });
 
     try {
-      final isRunning = await ProcessService.instance.isProcessRunning(_executablePath!);
+      final isRunning =
+          await ProcessService.instance.isProcessRunning(_executablePath!);
       if (isRunning) {
         setState(() {
           _isProcessRunning = true;
@@ -325,15 +357,18 @@ class _LauncherScreenState extends State<LauncherScreen> {
         return;
       }
 
-      final launched = await ProcessService.instance.launchExecutable(_executablePath!);
+      final launched =
+          await ProcessService.instance.launchExecutable(_executablePath!);
       // Give the process a moment to appear in tasklist
       await Future.delayed(const Duration(milliseconds: 400));
-      final nowRunning = await ProcessService.instance.isProcessRunning(_executablePath!);
+      final nowRunning =
+          await ProcessService.instance.isProcessRunning(_executablePath!);
       setState(() {
         _isProcessRunning = launched && nowRunning;
       });
     } catch (e, stack) {
-      LoggerService.instance.logException('Failed to open executable', e, stack, tag: 'PROCESS');
+      LoggerService.instance
+          .logException('Failed to open executable', e, stack, tag: 'PROCESS');
     } finally {
       if (mounted) {
         setState(() {
@@ -366,7 +401,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
   Future<void> _checkProcessStatus() async {
     if (_executablePath == null) return;
 
-    final isRunning = await ProcessService.instance.isProcessRunning(_executablePath!);
+    final isRunning =
+        await ProcessService.instance.isProcessRunning(_executablePath!);
     setState(() {
       _isProcessRunning = isRunning;
     });
@@ -384,7 +420,11 @@ class _LauncherScreenState extends State<LauncherScreen> {
                   image: AssetImage(config.backgroundImage),
                   fit: BoxFit.cover,
                   onError: (exception, stackTrace) {
-                    LoggerService.instance.error('Failed to load background image: ${config.backgroundImage}', tag: 'UI', error: exception, stackTrace: stackTrace);
+                    LoggerService.instance.error(
+                        'Failed to load background image: ${config.backgroundImage}',
+                        tag: 'UI',
+                        error: exception,
+                        stackTrace: stackTrace);
                   },
                 )
               : null,
@@ -530,7 +570,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
   }
 
   Widget _buildOpenButton() {
-    final bool disabled = _executablePath == null || _isProcessRunning || _isLaunching;
+    final bool disabled =
+        _executablePath == null || _isProcessRunning || _isLaunching;
 
     return ElevatedButton.icon(
       onPressed: disabled
@@ -625,7 +666,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
   }
 
   Widget _buildProgressIndicator() {
-    final bool isDeterminate = _updateProgressValue > 0.0 && _updateProgressValue <= 1.0;
+    final bool isDeterminate =
+        _updateProgressValue > 0.0 && _updateProgressValue <= 1.0;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(

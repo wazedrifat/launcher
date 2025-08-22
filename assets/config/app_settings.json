@@ -1,8 +1,32 @@
 {
   "app_name": "Driving Simulator Launcher",
-  "github_repo": {
-    "url": "https://github.com/furiousPotato1/Driving-Simulator-Builds",
-    "branch": "main"
+  "storage": {
+    "type": "github",
+    "github": {
+      "url": "https://github.com/furiousPotato1/Driving-Simulator-Builds",
+      "branch": "main"
+    },
+    "google_drive": {
+      "client_id": "",
+      "folder_id": "",
+      "credentials_path": "assets/credentials/google_drive_credentials.json"
+    },
+    "onedrive": {
+      "client_id": "",
+      "folder_path": "/Apps/YourAppName",
+      "credentials_path": "assets/credentials/onedrive_credentials.json"
+    },
+    "dropbox": {
+      "app_key": "",
+      "folder_path": "/Apps/YourAppName",
+      "credentials_path": "assets/credentials/dropbox_credentials.json"
+    },
+    "mega": {
+      "email": "",
+      "password": "",
+      "folder_path": "/Apps/YourAppName",
+      "credentials_path": "assets/credentials/mega_credentials.json"
+    }
   },
   "local_folder": "C:\\Program Files\\Driving-Simulator",
   "background_image": "assets/images/bg.jpg",
