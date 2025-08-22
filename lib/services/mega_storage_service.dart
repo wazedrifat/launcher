@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:launcher/models/app_config.dart';
+import 'package:launcher/services/credential_storage_service.dart';
 import 'package:launcher/services/logger_service.dart';
 import 'package:launcher/services/storage_service.dart';
 
@@ -21,28 +22,23 @@ class MegaStorageService extends StorageService {
     try {
       if (_config.email.isEmpty || _config.password.isEmpty) {
         LoggerService.instance
-            .error('MEGA configuration incomplete', tag: 'MEGA');
+            .error('MEGA email/password not configured', tag: 'MEGA');
         return false;
       }
 
       // Check if we have cached session
-      final credentialsFile = File(_config.credentialsPath);
-      if (await credentialsFile.exists()) {
-        try {
-          final credentials = json.decode(await credentialsFile.readAsString());
-          _sessionId = credentials['session_id'] as String?;
-          _masterKey = credentials['master_key'] as String?;
+      final credentials = await CredentialStorageService.instance
+          .getCredentials(StorageType.mega);
 
-          if (_sessionId != null && _masterKey != null) {
-            // Verify session is still valid
-            if (await _verifySession()) {
-              return true;
-            }
+      if (credentials != null) {
+        _sessionId = credentials['session_id'] as String?;
+        _masterKey = credentials['master_key'] as String?;
+
+        if (_sessionId != null && _masterKey != null) {
+          // Verify session is still valid
+          if (await _verifySession(credentials)) {
+            return true;
           }
-        } catch (e) {
-          LoggerService.instance.info(
-              'Invalid cached credentials, re-authenticating',
-              tag: 'MEGA');
         }
       }
 
@@ -109,20 +105,22 @@ class MegaStorageService extends StorageService {
   }
 
   /// Verify current session
-  Future<bool> _verifySession() async {
+  Future<bool> _verifySession(Map<String, dynamic> credentials) async {
     try {
       if (_sessionId == null) return false;
 
-      // In a real implementation, you'd verify the session with MEGA API
-      // For demo purposes, we'll assume sessions are valid for 1 hour
-      final credentialsFile = File(_config.credentialsPath);
-      if (await credentialsFile.exists()) {
-        final stat = await credentialsFile.stat();
-        final age = DateTime.now().difference(stat.modified);
-        return age.inHours < 1; // Session valid for 1 hour
+      // Check session expiration
+      final expiresAt = credentials['expires_at'] as String?;
+      if (expiresAt != null) {
+        final expireTime = DateTime.parse(expiresAt);
+        if (DateTime.now().isAfter(expireTime)) {
+          LoggerService.instance.info('MEGA session expired', tag: 'MEGA');
+          return false;
+        }
       }
 
-      return false;
+      // In a real implementation, you'd verify the session with MEGA API
+      return true;
     } catch (e, stack) {
       LoggerService.instance
           .logException('Error verifying MEGA session', e, stack, tag: 'MEGA');
@@ -130,18 +128,23 @@ class MegaStorageService extends StorageService {
     }
   }
 
-  /// Save credentials to file
+  /// Save credentials to secure storage
   Future<void> _saveCredentials() async {
     try {
       final credentials = {
         'session_id': _sessionId,
         'master_key': _masterKey,
         'timestamp': DateTime.now().toIso8601String(),
+        'expires_at':
+            DateTime.now().add(const Duration(hours: 1)).toIso8601String(),
+        'user_handle': _config.email,
+        'login_method': 'email_password',
       };
 
-      final credentialsFile = File(_config.credentialsPath);
-      await credentialsFile.parent.create(recursive: true);
-      await credentialsFile.writeAsString(json.encode(credentials));
+      await CredentialStorageService.instance.saveCredentials(
+        StorageType.mega,
+        credentials,
+      );
     } catch (e, stack) {
       LoggerService.instance
           .logException('Error saving MEGA credentials', e, stack, tag: 'MEGA');

@@ -266,11 +266,8 @@ launcher/
 ├── 📁 assets/
 │   ├── 📁 config/
 │   │   └── app_settings.json        # Main configuration
-│   └── 📁 credentials/
-│       ├── google_drive_credentials.json
-│       ├── onedrive_credentials.json
-│       ├── dropbox_credentials.json
-│       └── mega_credentials.json
+│   └── 📁 images/
+│       └── bg.jpg                             # Background image
 ├── 📄 STORAGE_SETUP_GUIDE.md       # Detailed setup guide
 └── 📄 README.md                    # This file
 ```
@@ -290,16 +287,32 @@ launcher/
 }
 ```
 
-### Advanced Configuration
+### Advanced Configuration with All Providers
 ```json
 {
   "app_name": "Game Launcher",
   "storage": {
-    "type": "google_drive",
+    "type": "mega",
+    "github": {
+      "url": "https://github.com/user/game-releases",
+      "branch": "main"
+    },
     "google_drive": {
-      "client_id": "123.apps.googleusercontent.com",
-      "folder_id": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms",
-      "credentials_path": "assets/credentials/google_drive_credentials.json"
+      "client_id": "123456789-abc.apps.googleusercontent.com",
+      "folder_id": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+    },
+    "onedrive": {
+      "client_id": "12345678-1234-1234-1234-123456789012",
+      "folder_path": "/Apps/GameLauncher"
+    },
+    "dropbox": {
+      "app_key": "abcdefghijklmnop",
+      "folder_path": "/Apps/GameLauncher"
+    },
+    "mega": {
+      "email": "user@example.com",
+      "password": "secure_password123",
+      "folder_path": "/Apps/GameLauncher"
     }
   },
   "local_folder": "C:\\Games\\MyGame",
@@ -338,10 +351,35 @@ For apps requiring 2-3GB+:
 ## 🔒 Security & Best Practices
 
 ### Credential Management
-- Store credentials in separate files
-- Use environment variables for sensitive data
-- Implement token refresh mechanisms
-- Never commit credentials to version control
+
+#### 🔐 **Automatic Authentication**
+The launcher handles all credential management automatically using Flutter's secure storage:
+
+- **📱 Secure Storage**: Uses Flutter's `flutter_secure_storage` package
+- **🔄 Auto-refresh**: OAuth2 tokens are automatically refreshed when expired
+- **🔒 Encrypted**: All credentials are stored encrypted on the device
+- **🚫 No Manual Files**: No need to create or manage credential files
+
+#### 🎯 **First-Time Setup**
+When you first select a cloud storage provider:
+
+1. **Configure app settings** with your provider details (client IDs, folder paths, etc.)
+2. **Launch the app** - it will detect missing credentials
+3. **OAuth2 flow** will automatically open in your browser (for Google Drive, OneDrive, Dropbox)
+4. **Login and authorize** the app to access your cloud storage
+5. **Done!** Credentials are securely saved and managed automatically
+
+#### 🔄 **Token Management**
+- **Google Drive**: Tokens refresh automatically every hour
+- **OneDrive**: Microsoft Graph tokens refresh as needed
+- **Dropbox**: Long-lived tokens with automatic validation
+- **MEGA**: Session tokens refresh every hour
+
+#### 🔒 **Security Features**
+- Credentials never stored in plain text files
+- Encrypted device-level storage using OS keychain/keystore
+- Automatic cleanup when changing storage providers
+- No credentials in app configuration files
 
 ### API Rate Limits & Quota Management
 - **Implement exponential backoff** for rate limit errors
@@ -479,6 +517,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📞 Support
 
 - 📖 Check the [Storage Setup Guide](./STORAGE_SETUP_GUIDE.md)
+- 📄 See [Complete Credentials Examples](./STORAGE_SETUP_GUIDE.md#credentials-examples)
 - 🐛 [Report Issues](https://github.com/yourusername/launcher/issues)
 - 💡 [Feature Requests](https://github.com/yourusername/launcher/discussions)
 - 📧 [Email Support](mailto:support@yourapp.com)

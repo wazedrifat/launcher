@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:launcher/models/app_config.dart';
+import 'package:launcher/services/credential_storage_service.dart';
 import 'package:launcher/services/logger_service.dart';
 import 'package:launcher/services/storage_service.dart';
 
@@ -18,29 +19,44 @@ class DropboxStorageService extends StorageService {
   /// Initialize Dropbox authentication
   Future<bool> _authenticate() async {
     try {
-      if (_config.appKey.isEmpty || _config.credentialsPath.isEmpty) {
+      if (_config.appKey.isEmpty) {
         LoggerService.instance
-            .error('Dropbox configuration incomplete', tag: 'DROPBOX');
+            .error('Dropbox app key not configured', tag: 'DROPBOX');
         return false;
       }
 
-      // TODO: Implement OAuth2 authentication flow
-      // For now, return true if credentials file exists
-      final credentialsFile = File(_config.credentialsPath);
-      if (await credentialsFile.exists()) {
-        final credentials = json.decode(await credentialsFile.readAsString());
-        _accessToken = credentials['access_token'] as String?;
-        return _accessToken != null;
+      // Check if we have stored credentials
+      final credentials = await CredentialStorageService.instance
+          .getCredentials(StorageType.dropbox);
+
+      if (credentials == null) {
+        LoggerService.instance.info(
+            'No Dropbox credentials found. User needs to authenticate.',
+            tag: 'DROPBOX');
+        return false;
       }
 
-      LoggerService.instance.error(
-          'Dropbox credentials file not found: ${_config.credentialsPath}',
-          tag: 'DROPBOX');
-      return false;
+      _accessToken = credentials['access_token'] as String?;
+      return _accessToken != null;
     } catch (e, stack) {
       LoggerService.instance.logException(
           'Dropbox authentication failed', e, stack,
           tag: 'DROPBOX');
+      return false;
+    }
+  }
+
+  /// Trigger OAuth2 authentication flow for Dropbox
+  Future<bool> authenticateUser() async {
+    try {
+      // TODO: Implement Dropbox OAuth2 flow
+      LoggerService.instance.info(
+          'Dropbox OAuth2 flow should be implemented here',
+          tag: 'DROPBOX');
+      return false;
+    } catch (e, stack) {
+      LoggerService.instance
+          .logException('Dropbox OAuth2 flow failed', e, stack, tag: 'DROPBOX');
       return false;
     }
   }

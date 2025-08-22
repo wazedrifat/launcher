@@ -118,17 +118,16 @@ git push origin main
 1. Upload your `app.zip` to the created folder
 2. Ensure folder has proper sharing permissions
 
-### Step 6: Create Credentials File
-Create `assets/credentials/google_drive_credentials.json`:
-```json
-{
-  "access_token": "your_access_token_here",
-  "refresh_token": "your_refresh_token_here",
-  "expires_in": 3600
-}
-```
+### Step 6: Authentication
+**🎉 No manual credential files needed!** The app handles authentication automatically:
 
-### Step 7: Configure App Settings
+1. **First Launch**: App detects missing Google Drive credentials
+2. **OAuth2 Flow**: Browser opens for Google login
+3. **User Consent**: You authorize the app to access Google Drive
+4. **Auto-Save**: Credentials are securely stored by the app
+5. **Done**: Future launches authenticate automatically
+
+### Step 6: Configure App Settings
 ```json
 {
   "storage": {
@@ -180,15 +179,14 @@ Create `assets/credentials/google_drive_credentials.json`:
 ### Step 4: Get Access Token
 Use Microsoft's OAuth2 flow to get access token. For testing, you can use [Graph Explorer](https://developer.microsoft.com/en-us/graph/graph-explorer).
 
-### Step 5: Create Credentials File
-Create `assets/credentials/onedrive_credentials.json`:
-```json
-{
-  "access_token": "your_access_token_here",
-  "refresh_token": "your_refresh_token_here",
-  "expires_in": 3600
-}
-```
+### Step 5: Authentication
+**🎉 No manual credential files needed!** The app handles authentication automatically:
+
+1. **First Launch**: App detects missing OneDrive credentials
+2. **OAuth2 Flow**: Browser opens for Microsoft login
+3. **User Consent**: You authorize the app to access OneDrive
+4. **Auto-Save**: Credentials are securely stored by the app
+5. **Done**: Future launches authenticate automatically
 
 ### Step 6: Configure App Settings
 ```json
@@ -238,13 +236,14 @@ Create `assets/credentials/onedrive_credentials.json`:
 2. Create folder: `/Apps/YourAppName/` (if using App folder)
 3. Upload your `app.zip` file
 
-### Step 5: Create Credentials File
-Create `assets/credentials/dropbox_credentials.json`:
-```json
-{
-  "access_token": "your_access_token_here"
-}
-```
+### Step 5: Authentication
+**🎉 No manual credential files needed!** The app handles authentication automatically:
+
+1. **First Launch**: App detects missing Dropbox credentials
+2. **OAuth2 Flow**: Browser opens for Dropbox login
+3. **User Consent**: You authorize the app to access Dropbox
+4. **Auto-Save**: Credentials are securely stored by the app
+5. **Done**: Future launches authenticate automatically
 
 ### Step 6: Configure App Settings
 ```json
@@ -253,8 +252,7 @@ Create `assets/credentials/dropbox_credentials.json`:
     "type": "dropbox",
     "dropbox": {
       "app_key": "your_dropbox_app_key",
-      "folder_path": "/Apps/YourAppName",
-      "credentials_path": "assets/credentials/dropbox_credentials.json"
+      "folder_path": "/Apps/YourAppName"
     }
   }
 }
@@ -289,8 +287,7 @@ Create `assets/credentials/dropbox_credentials.json`:
     "mega": {
       "email": "your_mega_email@example.com",
       "password": "your_mega_password",
-      "folder_path": "/Apps/YourAppName",
-      "credentials_path": "assets/credentials/mega_credentials.json"
+      "folder_path": "/Apps/YourAppName"
     }
   }
 }
@@ -329,18 +326,85 @@ Create `assets/credentials/dropbox_credentials.json`:
 - Keep your credentials secure
 - Consider using app-specific passwords
 
-### Step 8: Credential Management
-The app will automatically create a session file at:
-`assets/credentials/mega_credentials.json`
+### Step 8: Authentication
+**🎉 No manual credential files needed!** The app handles authentication automatically:
 
-This file contains:
-```json
-{
-  "session_id": "encrypted_session_token",
-  "master_key": "encrypted_master_key",
-  "timestamp": "2024-12-01T12:00:00Z"
-}
+1. **First Launch**: App uses your configured email/password
+2. **MEGA Login**: App authenticates with MEGA API directly
+3. **Session Management**: Creates encrypted session automatically
+4. **Auto-Renewal**: Sessions refresh every hour automatically
+5. **Done**: Secure credential storage with automatic management
+
+---
+
+## 🔐 Automatic Credential Management {#credentials-management}
+
+### ✨ **Zero-Configuration Security**
+The launcher app handles ALL credential management automatically:
+
+- **🚫 No Manual Files**: No need to create or manage credential files
+- **🔒 Secure Storage**: Uses Flutter's `flutter_secure_storage` for encrypted credential storage
+- **🔄 Auto-Refresh**: OAuth2 tokens automatically refresh before expiration
+- **🛡️ OS-Level Security**: Leverages platform keychains (Windows Credential Manager, macOS Keychain, Linux Secret Service)
+
+### 🎯 **First-Time Authentication Flow**
+
+#### **Google Drive / OneDrive / Dropbox (OAuth2)**
 ```
+1. Configure app_settings.json with client_id and folder info
+2. Launch app → Detects missing credentials
+3. OAuth2 browser window opens automatically
+4. User logs in and grants permissions
+5. App receives tokens and stores them securely
+6. Future launches: Automatic authentication
+```
+
+#### **MEGA (Email/Password)**
+```
+1. Configure app_settings.json with email, password, folder
+2. Launch app → Uses credentials to authenticate with MEGA API
+3. App creates secure session and stores encrypted
+4. Sessions auto-refresh every hour
+5. Future launches: Seamless authentication
+```
+
+### 🔒 **Security Architecture**
+
+#### **Storage Location**
+- **Windows**: Windows Credential Manager (`CredWrite`/`CredRead`)
+- **macOS**: Keychain Services (`SecItemAdd`/`SecItemCopyMatching`)
+- **Linux**: Secret Service API (GNOME Keyring, KWallet)
+- **Android**: Android Keystore with AES encryption
+- **iOS**: iOS Keychain with hardware security
+
+#### **Encryption Details**
+- All credentials encrypted at rest using platform-native encryption
+- No plaintext credential storage
+- Automatic cleanup when switching storage providers
+- Secure key derivation using platform cryptographic APIs
+
+#### **Token Management**
+```
+Google Drive:   OAuth2 → Auto-refresh every 55 min
+OneDrive:       OAuth2 → Auto-refresh every 55 min  
+Dropbox:        OAuth2 → Long-lived tokens with validation
+MEGA:           Session → Auto-refresh every 55 min
+```
+
+### 🛠️ **Troubleshooting**
+
+#### **Authentication Issues**
+```bash
+# Clear all stored credentials (if needed)
+flutter clean
+# Or implement "Logout" button in app to call:
+# CredentialStorageService.instance.clearAllCredentials()
+```
+
+#### **Token Refresh Problems**
+- App automatically handles refresh failures by triggering re-authentication
+- Users will see OAuth2 flow again if refresh tokens are invalid
+- No manual intervention required
 
 ---
 

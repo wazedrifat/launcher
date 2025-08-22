@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:launcher/models/app_config.dart';
+import 'package:launcher/services/credential_storage_service.dart';
 import 'package:launcher/services/logger_service.dart';
 import 'package:launcher/services/storage_service.dart';
 
@@ -18,28 +19,75 @@ class OneDriveStorageService extends StorageService {
   /// Initialize OneDrive authentication
   Future<bool> _authenticate() async {
     try {
-      if (_config.clientId.isEmpty || _config.credentialsPath.isEmpty) {
+      if (_config.clientId.isEmpty) {
         LoggerService.instance
-            .error('OneDrive configuration incomplete', tag: 'ONEDRIVE');
+            .error('OneDrive client ID not configured', tag: 'ONEDRIVE');
         return false;
       }
 
-      // TODO: Implement OAuth2 authentication flow
-      // For now, return true if credentials file exists
-      final credentialsFile = File(_config.credentialsPath);
-      if (await credentialsFile.exists()) {
-        final credentials = json.decode(await credentialsFile.readAsString());
-        _accessToken = credentials['access_token'] as String?;
-        return _accessToken != null;
+      // Check if we have stored credentials
+      final credentials = await CredentialStorageService.instance
+          .getCredentials(StorageType.oneDrive);
+
+      if (credentials == null) {
+        LoggerService.instance.info(
+            'No OneDrive credentials found. User needs to authenticate.',
+            tag: 'ONEDRIVE');
+        return false;
       }
 
-      LoggerService.instance.error(
-          'OneDrive credentials file not found: ${_config.credentialsPath}',
+      // Check if token is expired
+      if (CredentialStorageService.instance.isTokenExpired(credentials)) {
+        LoggerService.instance.info(
+            'OneDrive token expired. Attempting refresh.',
+            tag: 'ONEDRIVE');
+        return await _refreshToken(credentials);
+      }
+
+      _accessToken = credentials['access_token'] as String?;
+      return _accessToken != null;
+    } catch (e, stack) {
+      LoggerService.instance.logException(
+          'OneDrive authentication failed', e, stack,
+          tag: 'ONEDRIVE');
+      return false;
+    }
+  }
+
+  /// Refresh expired access token
+  Future<bool> _refreshToken(Map<String, dynamic> credentials) async {
+    try {
+      final refreshToken = credentials['refresh_token'] as String?;
+      if (refreshToken == null) {
+        LoggerService.instance
+            .error('No refresh token available for OneDrive', tag: 'ONEDRIVE');
+        return false;
+      }
+
+      // TODO: Implement token refresh with Microsoft Graph
+      LoggerService.instance.info(
+          'Token refresh not yet implemented. User needs to re-authenticate.',
           tag: 'ONEDRIVE');
       return false;
     } catch (e, stack) {
       LoggerService.instance.logException(
-          'OneDrive authentication failed', e, stack,
+          'OneDrive token refresh failed', e, stack,
+          tag: 'ONEDRIVE');
+      return false;
+    }
+  }
+
+  /// Trigger OAuth2 authentication flow for OneDrive
+  Future<bool> authenticateUser() async {
+    try {
+      // TODO: Implement Microsoft Graph OAuth2 flow
+      LoggerService.instance.info(
+          'Microsoft Graph OAuth2 flow should be implemented here',
+          tag: 'ONEDRIVE');
+      return false;
+    } catch (e, stack) {
+      LoggerService.instance.logException(
+          'OneDrive OAuth2 flow failed', e, stack,
           tag: 'ONEDRIVE');
       return false;
     }

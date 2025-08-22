@@ -156,19 +156,16 @@ class GitHubRepo {
 class GoogleDriveConfig {
   final String clientId;
   final String folderId;
-  final String credentialsPath;
 
   GoogleDriveConfig({
     required this.clientId,
     required this.folderId,
-    required this.credentialsPath,
   });
 
   factory GoogleDriveConfig.fromJson(Map<String, dynamic> json) {
     return GoogleDriveConfig(
       clientId: json['client_id'] as String? ?? '',
       folderId: json['folder_id'] as String? ?? '',
-      credentialsPath: json['credentials_path'] as String? ?? '',
     );
   }
 
@@ -176,7 +173,6 @@ class GoogleDriveConfig {
     return {
       'client_id': clientId,
       'folder_id': folderId,
-      'credentials_path': credentialsPath,
     };
   }
 }
@@ -184,19 +180,16 @@ class GoogleDriveConfig {
 class OneDriveConfig {
   final String clientId;
   final String folderPath;
-  final String credentialsPath;
 
   OneDriveConfig({
     required this.clientId,
     required this.folderPath,
-    required this.credentialsPath,
   });
 
   factory OneDriveConfig.fromJson(Map<String, dynamic> json) {
     return OneDriveConfig(
       clientId: json['client_id'] as String? ?? '',
       folderPath: json['folder_path'] as String? ?? '',
-      credentialsPath: json['credentials_path'] as String? ?? '',
     );
   }
 
@@ -204,7 +197,6 @@ class OneDriveConfig {
     return {
       'client_id': clientId,
       'folder_path': folderPath,
-      'credentials_path': credentialsPath,
     };
   }
 }
@@ -212,19 +204,16 @@ class OneDriveConfig {
 class DropboxConfig {
   final String appKey;
   final String folderPath;
-  final String credentialsPath;
 
   DropboxConfig({
     required this.appKey,
     required this.folderPath,
-    required this.credentialsPath,
   });
 
   factory DropboxConfig.fromJson(Map<String, dynamic> json) {
     return DropboxConfig(
       appKey: json['app_key'] as String? ?? '',
       folderPath: json['folder_path'] as String? ?? '',
-      credentialsPath: json['credentials_path'] as String? ?? '',
     );
   }
 
@@ -232,7 +221,6 @@ class DropboxConfig {
     return {
       'app_key': appKey,
       'folder_path': folderPath,
-      'credentials_path': credentialsPath,
     };
   }
 }
@@ -241,13 +229,11 @@ class MegaConfig {
   final String email;
   final String password;
   final String folderPath;
-  final String credentialsPath;
 
   MegaConfig({
     required this.email,
     required this.password,
     required this.folderPath,
-    required this.credentialsPath,
   });
 
   factory MegaConfig.fromJson(Map<String, dynamic> json) {
@@ -255,7 +241,6 @@ class MegaConfig {
       email: json['email'] as String? ?? '',
       password: json['password'] as String? ?? '',
       folderPath: json['folder_path'] as String? ?? '',
-      credentialsPath: json['credentials_path'] as String? ?? '',
     );
   }
 
@@ -264,7 +249,6 @@ class MegaConfig {
       'email': email,
       'password': password,
       'folder_path': folderPath,
-      'credentials_path': credentialsPath,
     };
   }
 }

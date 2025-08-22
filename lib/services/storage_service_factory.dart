@@ -75,16 +75,16 @@ class StorageServiceFactory {
             storageConfig.github.branch.isNotEmpty;
 
       case StorageType.googleDrive:
-        return storageConfig.googleDrive.folderId.isNotEmpty &&
-            storageConfig.googleDrive.credentialsPath.isNotEmpty;
+        return storageConfig.googleDrive.clientId.isNotEmpty &&
+            storageConfig.googleDrive.folderId.isNotEmpty;
 
       case StorageType.oneDrive:
-        return storageConfig.oneDrive.folderPath.isNotEmpty &&
-            storageConfig.oneDrive.credentialsPath.isNotEmpty;
+        return storageConfig.oneDrive.clientId.isNotEmpty &&
+            storageConfig.oneDrive.folderPath.isNotEmpty;
 
       case StorageType.dropbox:
-        return storageConfig.dropbox.folderPath.isNotEmpty &&
-            storageConfig.dropbox.credentialsPath.isNotEmpty;
+        return storageConfig.dropbox.appKey.isNotEmpty &&
+            storageConfig.dropbox.folderPath.isNotEmpty;
 
       case StorageType.mega:
         return storageConfig.mega.email.isNotEmpty &&
@@ -104,16 +104,16 @@ class StorageServiceFactory {
         return 'Requires: Repository URL and branch name';
 
       case StorageType.googleDrive:
-        return 'Requires: Google Drive folder ID, client ID, and credentials file';
+        return 'Requires: Google Drive client ID and folder ID (credentials handled automatically)';
 
       case StorageType.oneDrive:
-        return 'Requires: OneDrive folder path, client ID, and credentials file';
+        return 'Requires: OneDrive client ID and folder path (credentials handled automatically)';
 
       case StorageType.dropbox:
-        return 'Requires: Dropbox folder path, app key, and credentials file';
+        return 'Requires: Dropbox App Key and folder path (credentials handled automatically)';
 
       case StorageType.mega:
-        return 'Requires: MEGA email, password, and folder path';
+        return 'Requires: MEGA email, password, and folder path (credentials handled automatically)';
     }
   }
 }

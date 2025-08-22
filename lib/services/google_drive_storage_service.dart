@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:launcher/models/app_config.dart';
+import 'package:launcher/services/credential_storage_service.dart';
 import 'package:launcher/services/logger_service.dart';
 import 'package:launcher/services/storage_service.dart';
 
@@ -17,28 +18,86 @@ class GoogleDriveStorageService extends StorageService {
   /// Initialize Google Drive authentication
   Future<bool> _authenticate() async {
     try {
-      if (_config.clientId.isEmpty || _config.credentialsPath.isEmpty) {
+      if (_config.clientId.isEmpty) {
         LoggerService.instance
-            .error('Google Drive configuration incomplete', tag: 'DRIVE');
+            .error('Google Drive client ID not configured', tag: 'DRIVE');
         return false;
       }
 
-      // TODO: Implement OAuth2 authentication flow
-      // For now, return true if credentials file exists
-      final credentialsFile = File(_config.credentialsPath);
-      if (await credentialsFile.exists()) {
-        final credentials = json.decode(await credentialsFile.readAsString());
-        _accessToken = credentials['access_token'] as String?;
-        return _accessToken != null;
+      // Check if we have stored credentials
+      final credentials = await CredentialStorageService.instance
+          .getCredentials(StorageType.googleDrive);
+
+      if (credentials == null) {
+        LoggerService.instance.info(
+            'No Google Drive credentials found. User needs to authenticate.',
+            tag: 'DRIVE');
+        // TODO: Trigger OAuth2 flow in UI
+        return false;
       }
 
-      LoggerService.instance.error(
-          'Google Drive credentials file not found: ${_config.credentialsPath}',
+      // Check if token is expired
+      if (CredentialStorageService.instance.isTokenExpired(credentials)) {
+        LoggerService.instance.info(
+            'Google Drive token expired. Attempting refresh.',
+            tag: 'DRIVE');
+        return await _refreshToken(credentials);
+      }
+
+      _accessToken = credentials['access_token'] as String?;
+      return _accessToken != null;
+    } catch (e, stack) {
+      LoggerService.instance.logException(
+          'Google Drive authentication failed', e, stack,
+          tag: 'DRIVE');
+      return false;
+    }
+  }
+
+  /// Refresh expired access token
+  Future<bool> _refreshToken(Map<String, dynamic> credentials) async {
+    try {
+      final refreshToken = credentials['refresh_token'] as String?;
+      if (refreshToken == null) {
+        LoggerService.instance
+            .error('No refresh token available for Google Drive', tag: 'DRIVE');
+        return false;
+      }
+
+      // TODO: Implement token refresh with Google OAuth2
+      // For now, just return false to trigger re-authentication
+      LoggerService.instance.info(
+          'Token refresh not yet implemented. User needs to re-authenticate.',
           tag: 'DRIVE');
       return false;
     } catch (e, stack) {
       LoggerService.instance.logException(
-          'Google Drive authentication failed', e, stack,
+          'Google Drive token refresh failed', e, stack,
+          tag: 'DRIVE');
+      return false;
+    }
+  }
+
+  /// Trigger OAuth2 authentication flow
+  /// This should be called from the UI when user wants to connect Google Drive
+  Future<bool> authenticateUser() async {
+    try {
+      // TODO: Implement OAuth2 flow
+      // This is a placeholder for the actual OAuth2 implementation
+      LoggerService.instance
+          .info('OAuth2 flow should be implemented here', tag: 'DRIVE');
+
+      // For demo purposes, return false
+      // In real implementation, this would:
+      // 1. Open OAuth2 authorization URL
+      // 2. Handle callback with authorization code
+      // 3. Exchange code for access/refresh tokens
+      // 4. Store tokens using CredentialStorageService
+
+      return false;
+    } catch (e, stack) {
+      LoggerService.instance.logException(
+          'Google Drive OAuth2 flow failed', e, stack,
           tag: 'DRIVE');
       return false;
     }

@@ -8,24 +8,20 @@
     },
     "google_drive": {
       "client_id": "",
-      "folder_id": "",
-      "credentials_path": "assets/credentials/google_drive_credentials.json"
+      "folder_id": ""
     },
     "onedrive": {
       "client_id": "",
-      "folder_path": "/Apps/YourAppName",
-      "credentials_path": "assets/credentials/onedrive_credentials.json"
+      "folder_path": "/Apps/YourAppName"
     },
     "dropbox": {
       "app_key": "",
-      "folder_path": "/Apps/YourAppName",
-      "credentials_path": "assets/credentials/dropbox_credentials.json"
+      "folder_path": "/Apps/YourAppName"
     },
     "mega": {
       "email": "",
       "password": "",
-      "folder_path": "/Apps/YourAppName",
-      "credentials_path": "assets/credentials/mega_credentials.json"
+      "folder_path": "/Apps/YourAppName"
     }
   },
   "local_folder": "C:\\Program Files\\Driving-Simulator",

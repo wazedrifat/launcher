@@ -1,10 +1,10 @@
 name: launcher
 description: A modern Windows launcher app for GitHub repositories
-publish_to: 'none'
+publish_to: "none"
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: ">=3.0.0 <4.0.0"
   flutter: ">=3.10.0"
 
 dependencies:
@@ -16,6 +16,7 @@ dependencies:
   process_run: ^0.13.2
   connectivity_plus: ^5.0.2
   window_manager: ^0.3.7
+  flutter_secure_storage: ^9.0.0
 
 dev_dependencies:
   flutter_test:
