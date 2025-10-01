@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:process_run/process_run.dart';
 import 'package:launcher/services/logger_service.dart';
 
 class GitService {

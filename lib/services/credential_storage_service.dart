@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+// import 'package:flutter_secure_storage/flutter_secure_storage.dart';  // Temporarily disabled
 import 'package:launcher/models/app_config.dart';
 import 'package:launcher/services/logger_service.dart';
 
@@ -12,16 +12,8 @@ class CredentialStorageService {
   factory CredentialStorageService() => instance;
   CredentialStorageService._internal();
 
-  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
-    aOptions: AndroidOptions(
-      encryptedSharedPreferences: true,
-    ),
-    iOptions: IOSOptions(
-      accessibility: KeychainAccessibility.first_unlock_this_device,
-    ),
-    wOptions: WindowsOptions(),
-    lOptions: LinuxOptions(),
-  );
+  // Temporary stub - replace with actual secure storage implementation
+  static final Map<String, String> _tempStorage = <String, String>{};
 
   /// Storage keys for different providers
   static const String _keyPrefix = 'launcher_storage_';
@@ -36,10 +28,10 @@ class CredentialStorageService {
     try {
       final key = _getStorageKey(type);
       final credentialsJson = json.encode(credentials);
-      await _secureStorage.write(key: key, value: credentialsJson);
+      _tempStorage[key] = credentialsJson;
 
       LoggerService.instance.info(
-          'Credentials saved successfully for ${type.value}',
+          'Credentials saved successfully for ${type.value} (TEMP STORAGE)',
           tag: 'CREDENTIALS');
     } catch (e, stack) {
       LoggerService.instance.logException(
@@ -53,7 +45,7 @@ class CredentialStorageService {
   Future<Map<String, dynamic>?> getCredentials(StorageType type) async {
     try {
       final key = _getStorageKey(type);
-      final credentialsJson = await _secureStorage.read(key: key);
+      final credentialsJson = _tempStorage[key];
 
       if (credentialsJson == null) {
         LoggerService.instance
@@ -63,7 +55,7 @@ class CredentialStorageService {
 
       final credentials = json.decode(credentialsJson) as Map<String, dynamic>;
       LoggerService.instance.info(
-          'Credentials loaded successfully for ${type.value}',
+          'Credentials loaded successfully for ${type.value} (TEMP STORAGE)',
           tag: 'CREDENTIALS');
 
       return credentials;
@@ -89,10 +81,10 @@ class CredentialStorageService {
   Future<void> removeCredentials(StorageType type) async {
     try {
       final key = _getStorageKey(type);
-      await _secureStorage.delete(key: key);
+      _tempStorage.remove(key);
 
       LoggerService.instance.info(
-          'Credentials removed successfully for ${type.value}',
+          'Credentials removed successfully for ${type.value} (TEMP STORAGE)',
           tag: 'CREDENTIALS');
     } catch (e, stack) {
       LoggerService.instance.logException(
@@ -105,16 +97,15 @@ class CredentialStorageService {
   /// Clear all stored credentials (useful for logout/reset)
   Future<void> clearAllCredentials() async {
     try {
-      final allKeys = await _secureStorage.readAll();
       final launcherKeys =
-          allKeys.keys.where((key) => key.startsWith(_keyPrefix));
+          _tempStorage.keys.where((key) => key.startsWith(_keyPrefix)).toList();
 
       for (final key in launcherKeys) {
-        await _secureStorage.delete(key: key);
+        _tempStorage.remove(key);
       }
 
       LoggerService.instance
-          .info('All credentials cleared successfully', tag: 'CREDENTIALS');
+          .info('All credentials cleared successfully (TEMP STORAGE)', tag: 'CREDENTIALS');
     } catch (e, stack) {
       LoggerService.instance.logException(
           'Failed to clear all credentials', e, stack,

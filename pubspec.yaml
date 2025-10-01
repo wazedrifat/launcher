@@ -13,10 +13,12 @@ dependencies:
   cupertino_icons: ^1.0.2
   path_provider: ^2.1.1
   http: ^1.1.0
-  process_run: ^0.13.2
-  connectivity_plus: ^5.0.2
-  window_manager: ^0.3.7
-  flutter_secure_storage: ^9.0.0
+  process_run: ^1.2.4
+  connectivity_plus: ^7.0.0
+  window_manager: ^0.5.1
+  archive: ^3.4.10
+  pointycastle: ^3.7.4
+# flutter_secure_storage: ^9.2.2  # Temporarily disabled due to ATL header issue
 
 dev_dependencies:
   flutter_test:

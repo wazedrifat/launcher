@@ -9,7 +9,7 @@ class ProcessService {
 
   Future<String?> findExecutable(String folderPath, String exeFileName) async {
     try {
-      LoggerService.instance.logProcessOperation('Find executable', details: 'Searching ${exeFileName} in $folderPath');
+      LoggerService.instance.logProcessOperation('Find executable', details: 'Searching $exeFileName in $folderPath');
 
       final directory = Directory(folderPath);
       if (!directory.existsSync()) {

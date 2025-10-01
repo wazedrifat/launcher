@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:archive/archive_io.dart';
 import 'package:launcher/services/logger_service.dart';
 import 'package:path/path.dart' as path;
 
@@ -48,19 +49,9 @@ class ArchiveService {
 
       onProgress?.call('Starting extraction...', 0.2);
 
-      // Use platform-specific extraction method
-      bool success;
-      if (Platform.isWindows) {
-        success =
-            await _extractZipWindows(zipFilePath, destinationPath, onProgress);
-      } else if (Platform.isMacOS || Platform.isLinux) {
-        success =
-            await _extractZipUnix(zipFilePath, destinationPath, onProgress);
-      } else {
-        LoggerService.instance
-            .error('Unsupported platform for ZIP extraction', tag: 'ARCHIVE');
-        return false;
-      }
+      // Use Dart archive for consistent cross-platform extraction (streaming)
+      final success = await _extractZipWithArchive(
+          zipFilePath, destinationPath, onProgress);
 
       if (success) {
         onProgress?.call('Extraction completed', 1.0);
@@ -79,118 +70,51 @@ class ArchiveService {
     }
   }
 
-  /// Extract ZIP file on Windows using PowerShell
-  Future<bool> _extractZipWindows(
+  /// Extract ZIP using Dart archive package with streaming to disk
+  Future<bool> _extractZipWithArchive(
     String zipFilePath,
     String destinationPath,
     Function(String, double?)? onProgress,
   ) async {
     try {
-      onProgress?.call('Using PowerShell extraction...', 0.3);
+      onProgress?.call('Reading ZIP directory...', 0.3);
 
-      // Use PowerShell Expand-Archive cmdlet
-      final result = await Process.run(
-        'powershell',
-        [
-          '-Command',
-          'Expand-Archive -Path "$zipFilePath" -DestinationPath "$destinationPath" -Force'
-        ],
-        runInShell: true,
-      );
+      // Stream the zip file and extract each entry without loading into memory
+      final inputStream = InputFileStream(zipFilePath);
+      final archive = ZipDecoder().decodeBuffer(inputStream);
 
-      onProgress?.call('PowerShell extraction completed', 0.9);
+      int processedEntries = 0;
+      final totalEntries = archive.isEmpty ? 1 : archive.length;
 
-      if (result.exitCode == 0) {
-        LoggerService.instance
-            .info('Windows ZIP extraction successful', tag: 'ARCHIVE');
-        return true;
-      } else {
-        LoggerService.instance.error(
-            'Windows ZIP extraction failed: ${result.stderr}',
-            tag: 'ARCHIVE');
+      for (final file in archive) {
+        final filename = file.name;
+        final outPath = path.join(destinationPath, filename);
 
-        // Fallback to alternative Windows method
-        return await _extractZipWindowsFallback(
-            zipFilePath, destinationPath, onProgress);
+        if (file.isFile) {
+          final outFile = File(outPath);
+          await outFile.parent.create(recursive: true);
+          final output = OutputFileStream(outPath);
+          file.writeContent(output);
+          await output.close();
+        } else {
+          await Directory(outPath).create(recursive: true);
+        }
+
+        processedEntries++;
+        final progress = 0.35 + (processedEntries / totalEntries) * 0.6;
+        onProgress?.call('Extracting $filename', progress);
       }
-    } catch (e, stack) {
-      LoggerService.instance.logException(
-          'Windows ZIP extraction error', e, stack,
-          tag: 'ARCHIVE');
 
-      // Fallback to alternative method
-      return await _extractZipWindowsFallback(
-          zipFilePath, destinationPath, onProgress);
-    }
-  }
+      await inputStream.close();
 
-  /// Fallback Windows extraction using tar (available in Windows 10+)
-  Future<bool> _extractZipWindowsFallback(
-    String zipFilePath,
-    String destinationPath,
-    Function(String, double?)? onProgress,
-  ) async {
-    try {
-      onProgress?.call('Using Windows tar fallback...', 0.4);
-
-      // Windows 10+ includes tar command
-      final result = await Process.run(
-        'tar',
-        ['-xf', zipFilePath, '-C', destinationPath],
-        runInShell: true,
-      );
-
-      onProgress?.call('Windows tar extraction completed', 0.9);
-
-      if (result.exitCode == 0) {
-        LoggerService.instance
-            .info('Windows tar ZIP extraction successful', tag: 'ARCHIVE');
-        return true;
-      } else {
-        LoggerService.instance.error(
-            'Windows tar ZIP extraction failed: ${result.stderr}',
-            tag: 'ARCHIVE');
-        return false;
-      }
-    } catch (e, stack) {
-      LoggerService.instance.logException(
-          'Windows tar ZIP extraction error', e, stack,
-          tag: 'ARCHIVE');
-      return false;
-    }
-  }
-
-  /// Extract ZIP file on Unix systems (macOS/Linux) using unzip
-  Future<bool> _extractZipUnix(
-    String zipFilePath,
-    String destinationPath,
-    Function(String, double?)? onProgress,
-  ) async {
-    try {
-      onProgress?.call('Using unzip command...', 0.3);
-
-      // Use unzip command
-      final result = await Process.run(
-        'unzip',
-        ['-o', zipFilePath, '-d', destinationPath],
-        runInShell: true,
-      );
-
-      onProgress?.call('Unzip completed', 0.9);
-
-      if (result.exitCode == 0) {
-        LoggerService.instance
-            .info('Unix ZIP extraction successful', tag: 'ARCHIVE');
-        return true;
-      } else {
-        LoggerService.instance.error(
-            'Unix ZIP extraction failed: ${result.stderr}',
-            tag: 'ARCHIVE');
-        return false;
-      }
-    } catch (e, stack) {
+      onProgress?.call('Extraction completed', 1.0);
       LoggerService.instance
-          .logException('Unix ZIP extraction error', e, stack, tag: 'ARCHIVE');
+          .info('Dart archive extraction successful', tag: 'ARCHIVE');
+      return true;
+    } catch (e, stack) {
+      LoggerService.instance.logException(
+          'Dart archive extraction error', e, stack,
+          tag: 'ARCHIVE');
       return false;
     }
   }

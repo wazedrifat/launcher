@@ -11,7 +11,9 @@ class ConnectivityService {
     try {
       LoggerService.instance.logConnectivityCheck(false, details: 'Checking connectivity...');
       
-      final connectivityResult = await Connectivity().checkConnectivity();
+      final connectivityResults = await Connectivity().checkConnectivity();
+      // connectivity_plus 7.0.0+ returns List<ConnectivityResult>
+      final connectivityResult = connectivityResults.isNotEmpty ? connectivityResults.first : ConnectivityResult.none;
       if (connectivityResult == ConnectivityResult.none) {
         LoggerService.instance.logConnectivityCheck(false, details: 'No network interface available');
         return false;
@@ -23,7 +25,7 @@ class ConnectivityService {
       
       LoggerService.instance.logConnectivityCheck(isConnected, details: 'Connectivity result: $connectivityResult');
       return isConnected;
-    } catch (e, stackTrace) {
+    } catch (e) {
       LoggerService.instance.logConnectivityCheck(false, details: 'Error: $e');
       return false;
     }
@@ -39,6 +41,10 @@ class ConnectivityService {
   }
 
   Stream<ConnectivityResult> get connectivityStream {
-    return Connectivity().onConnectivityChanged;
+    // connectivity_plus 7.0.0+ returns Stream<List<ConnectivityResult>>
+    // Transform it to Stream<ConnectivityResult> for backward compatibility
+    return Connectivity().onConnectivityChanged.map((results) => 
+      results.isNotEmpty ? results.first : ConnectivityResult.none
+    );
   }
 }

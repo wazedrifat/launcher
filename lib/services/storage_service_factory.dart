@@ -1,9 +1,9 @@
 import 'package:launcher/models/app_config.dart';
 import 'package:launcher/services/dropbox_storage_service.dart';
 import 'package:launcher/services/github_storage_service.dart';
-import 'package:launcher/services/google_drive_storage_service.dart';
-import 'package:launcher/services/mega_storage_service.dart';
+import 'package:launcher/services/mega_auth_service.dart';
 import 'package:launcher/services/onedrive_storage_service.dart';
+import 'package:launcher/services/public_google_drive_service.dart';
 import 'package:launcher/services/storage_service.dart';
 
 /// Factory class for creating storage service instances
@@ -25,7 +25,7 @@ class StorageServiceFactory {
         return GitHubStorageService(storageConfig.github);
 
       case StorageType.googleDrive:
-        return GoogleDriveStorageService(storageConfig.googleDrive);
+        return PublicGoogleDriveService(storageConfig.googleDrive);
 
       case StorageType.oneDrive:
         return OneDriveStorageService(storageConfig.oneDrive);
@@ -34,7 +34,7 @@ class StorageServiceFactory {
         return DropboxStorageService(storageConfig.dropbox);
 
       case StorageType.mega:
-        return MegaStorageService(storageConfig.mega);
+        return MegaAuthService(storageConfig.mega);
     }
   }
 
@@ -75,8 +75,7 @@ class StorageServiceFactory {
             storageConfig.github.branch.isNotEmpty;
 
       case StorageType.googleDrive:
-        return storageConfig.googleDrive.clientId.isNotEmpty &&
-            storageConfig.googleDrive.folderId.isNotEmpty;
+        return storageConfig.googleDrive.folderId.isNotEmpty;
 
       case StorageType.oneDrive:
         return storageConfig.oneDrive.clientId.isNotEmpty &&
@@ -104,7 +103,7 @@ class StorageServiceFactory {
         return 'Requires: Repository URL and branch name';
 
       case StorageType.googleDrive:
-        return 'Requires: Google Drive client ID and folder ID (credentials handled automatically)';
+        return 'Requires: Google Drive file ID (public sharing - no authentication needed)';
 
       case StorageType.oneDrive:
         return 'Requires: OneDrive client ID and folder path (credentials handled automatically)';
@@ -113,7 +112,7 @@ class StorageServiceFactory {
         return 'Requires: Dropbox App Key and folder path (credentials handled automatically)';
 
       case StorageType.mega:
-        return 'Requires: MEGA email, password, and folder path (credentials handled automatically)';
+        return 'Requires: MEGA email, password, and file link';
     }
   }
 }

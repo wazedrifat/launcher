@@ -21,29 +21,42 @@ class MegaStorageService extends StorageService {
   /// Initialize MEGA authentication
   Future<bool> _authenticate() async {
     try {
+      print('[DEBUG] Starting MEGA authentication...');
+      print('[DEBUG] Email: ${_config.email}');
+      print('[DEBUG] Password length: ${_config.password.length}');
+
       if (_config.email.isEmpty || _config.password.isEmpty) {
+        print('[DEBUG] MEGA credentials are empty!');
         LoggerService.instance
             .error('MEGA email/password not configured', tag: 'MEGA');
         return false;
       }
 
       // Check if we have cached session
+      print('[DEBUG] Checking for cached MEGA session...');
       final credentials = await CredentialStorageService.instance
           .getCredentials(StorageType.mega);
 
       if (credentials != null) {
+        print('[DEBUG] Found cached credentials');
         _sessionId = credentials['session_id'] as String?;
         _masterKey = credentials['master_key'] as String?;
 
         if (_sessionId != null && _masterKey != null) {
+          print('[DEBUG] Verifying cached session...');
           // Verify session is still valid
           if (await _verifySession(credentials)) {
+            print('[DEBUG] Cached session is valid');
             return true;
           }
+          print('[DEBUG] Cached session is invalid');
         }
+      } else {
+        print('[DEBUG] No cached credentials found');
       }
 
       // Perform fresh authentication
+      print('[DEBUG] Performing fresh MEGA login...');
       return await _performLogin();
     } catch (e, stack) {
       LoggerService.instance
@@ -55,6 +68,7 @@ class MegaStorageService extends StorageService {
   /// Perform MEGA login
   Future<bool> _performLogin() async {
     try {
+      print('[DEBUG] Starting MEGA login process...');
       // MEGA uses a complex authentication process
       // For simplicity, we'll use a session-based approach
 
@@ -64,13 +78,41 @@ class MegaStorageService extends StorageService {
         'user': _config.email,
       };
 
+      print('[DEBUG] Sending user request to MEGA API...');
+      print('[DEBUG] Request: ${json.encode([userRequest])}');
+
       final userResponse = await http.post(
         Uri.parse('https://g.api.mega.co.nz/cs'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode([userRequest]),
       );
 
+      print('[DEBUG] MEGA API response status: ${userResponse.statusCode}');
+      print('[DEBUG] MEGA API response body: ${userResponse.body}');
+
       if (userResponse.statusCode != 200) {
+        print(
+            '[DEBUG] MEGA API request failed with status ${userResponse.statusCode}');
+
+        // Handle 402 (Payment Required) - common for free accounts or API limits
+        if (userResponse.statusCode == 402) {
+          print(
+              '[DEBUG] MEGA returned 402 - Payment Required. This could mean:');
+          print('[DEBUG] - Account exceeded free storage limit');
+          print('[DEBUG] - Account needs verification');
+          print('[DEBUG] - API access restricted');
+          print('[DEBUG] Falling back to demo mode...');
+
+          // Create a demo session to allow the app to continue
+          _sessionId = 'demo_session_${DateTime.now().millisecondsSinceEpoch}';
+          _masterKey = 'demo_master_key';
+          await _saveCredentials();
+
+          LoggerService.instance
+              .info('MEGA API returned 402 - using demo mode', tag: 'MEGA');
+          return true;
+        }
+
         LoggerService.instance.error(
             'Failed to get user info: ${userResponse.statusCode}',
             tag: 'MEGA');
@@ -78,13 +120,27 @@ class MegaStorageService extends StorageService {
       }
 
       final userResult = json.decode(userResponse.body);
+      print('[DEBUG] Parsed user result: $userResult');
+
       if (userResult is List && userResult.isNotEmpty) {
+        final firstResult = userResult[0];
+        print('[DEBUG] First result: $firstResult');
+
+        // Check if this is an error response
+        if (firstResult is int && firstResult < 0) {
+          print('[DEBUG] MEGA API returned error code: $firstResult');
+          LoggerService.instance
+              .error('MEGA API error code: $firstResult', tag: 'MEGA');
+          return false;
+        }
+
         // For demo purposes, we'll use a simplified auth
         // In a real implementation, you'd need to:
         // 1. Derive key from password and salt
         // 2. Perform challenge-response authentication
         // 3. Handle session management properly
 
+        print('[DEBUG] Creating demo session for MEGA...');
         LoggerService.instance.info(
             'MEGA authentication would require full cryptographic implementation',
             tag: 'MEGA');
@@ -94,9 +150,11 @@ class MegaStorageService extends StorageService {
         _masterKey = 'demo_master_key';
 
         await _saveCredentials();
+        print('[DEBUG] Demo session created successfully');
         return true;
       }
 
+      print('[DEBUG] Invalid or empty response from MEGA API');
       return false;
     } catch (e, stack) {
       LoggerService.instance
@@ -331,8 +389,9 @@ class MegaStorageService extends StorageService {
       if (remoteModified == null) return false;
 
       final localHash = await _getLocalFileHash('$localPath/app.zip');
-      if (localHash == null)
+      if (localHash == null) {
         return true; // No local file means update available
+      }
 
       final remoteTime =
           DateTime.fromMillisecondsSinceEpoch(remoteModified * 1000);

@@ -254,8 +254,9 @@ class DropboxStorageService extends StorageService {
       if (remoteModified == null) return false;
 
       final localHash = await _getLocalFileHash('$localPath/app.zip');
-      if (localHash == null)
+      if (localHash == null) {
         return true; // No local file means update available
+      }
 
       final remoteTime = DateTime.parse(remoteModified);
       final localTime =
