@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:launcher/models/app_config.dart';
-import 'package:launcher/services/archive_service.dart';
 import 'package:launcher/services/credential_storage_service.dart';
 import 'package:launcher/services/logger_service.dart';
 import 'package:launcher/services/oauth2_service.dart';
@@ -114,40 +113,6 @@ class GoogleDriveStorageService extends StorageService {
     }
   }
 
-  /// Get file metadata from Google Drive
-  Future<Map<String, dynamic>?> _getFileMetadata(String fileName) async {
-    try {
-      if (_accessToken == null && !await _authenticate()) {
-        return null;
-      }
-
-      final query = "'${_config.folderId}' in parents and name='$fileName'";
-      final response = await http.get(
-        Uri.parse(
-            'https://www.googleapis.com/drive/v3/files?q=${Uri.encodeComponent(query)}&fields=files(id,name,modifiedTime,md5Checksum)'),
-        headers: {
-          'Authorization': 'Bearer $_accessToken',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final files = data['files'] as List;
-        return files.isNotEmpty ? files.first : null;
-      } else {
-        LoggerService.instance.error(
-            'Failed to get file metadata: ${response.statusCode} ${response.body}',
-            tag: 'DRIVE');
-        return null;
-      }
-    } catch (e, stack) {
-      LoggerService.instance
-          .logException('Error getting file metadata', e, stack, tag: 'DRIVE');
-      return null;
-    }
-  }
-
   /// Download file from Google Drive
   Future<bool> _downloadFile(String fileId, String localPath,
       {Function(String, double?)? onProgress}) async {
@@ -156,7 +121,7 @@ class GoogleDriveStorageService extends StorageService {
         return false;
       }
 
-      onProgress?.call('Downloading from Google Drive...', 0.0);
+      onProgress?.call('Downloading file...', 0.0);
 
       final response = await http.get(
         Uri.parse(
@@ -213,57 +178,87 @@ class GoogleDriveStorageService extends StorageService {
     try {
       onProgress?.call('Connecting to Google Drive...', 0.1);
 
-      // For apps, we'll look for a zip file with the same name as the exe
-      final directory = Directory(localPath);
-      final exeFiles =
-          directory.listSync().where((f) => f.path.endsWith('.exe')).toList();
+      if (_accessToken == null && !await _authenticate()) {
+        return false;
+      }
 
-      if (exeFiles.isEmpty) {
-        // Look for a default zip file
-        final metadata = await _getFileMetadata('app.zip');
-        if (metadata == null) {
+      onProgress?.call('Listing folder contents...', 0.2);
+
+      // Get all files in the folder
+      final files = await _listFolderContents();
+      if (files == null || files.isEmpty) {
+        LoggerService.instance
+            .error('No files found in Google Drive folder', tag: 'DRIVE');
+        return false;
+      }
+
+      final totalFiles = files.length;
+      int downloadedFiles = 0;
+
+      for (final file in files) {
+        final fileName = file['name'] as String;
+        final fileId = file['id'] as String;
+
+        onProgress?.call('Downloading $fileName...',
+            0.2 + (0.7 * (downloadedFiles / totalFiles)));
+
+        // Create the full local path for this file
+        final fileLocalPath = '$localPath/$fileName';
+
+        if (await _downloadFile(fileId, fileLocalPath)) {
+          downloadedFiles++;
           LoggerService.instance
-              .error('No app files found in Google Drive folder', tag: 'DRIVE');
+              .info('Downloaded $fileName successfully', tag: 'DRIVE');
+        } else {
+          LoggerService.instance
+              .error('Failed to download $fileName', tag: 'DRIVE');
           return false;
-        }
-
-        final zipPath = '$localPath/app.zip';
-        if (await _downloadFile(metadata['id'], zipPath,
-            onProgress: onProgress)) {
-          onProgress?.call('Extracting files...', 0.8);
-
-          // Extract zip file
-          LoggerService.instance.info(
-              'Downloaded app.zip, starting extraction to $localPath',
-              tag: 'DRIVE');
-
-          final extractSuccess = await ArchiveService.instance.extractZipFile(
-            zipPath,
-            localPath,
-            onProgress: onProgress,
-          );
-
-          // Clean up temporary zip file
-          await ArchiveService.instance.cleanupTempFile(zipPath);
-
-          if (extractSuccess) {
-            LoggerService.instance.info(
-                'Successfully downloaded and extracted app.zip to $localPath',
-                tag: 'DRIVE');
-            return true;
-          } else {
-            LoggerService.instance
-                .error('Failed to extract downloaded app.zip', tag: 'DRIVE');
-            return false;
-          }
         }
       }
 
-      return false;
+      onProgress?.call('Download completed', 1.0);
+      LoggerService.instance.info(
+          'Successfully downloaded $downloadedFiles/$totalFiles files to $localPath',
+          tag: 'DRIVE');
+      return true;
     } catch (e, stack) {
       LoggerService.instance
           .logException('Download repository failed', e, stack, tag: 'DRIVE');
       return false;
+    }
+  }
+
+  /// List all files in the configured Google Drive folder
+  Future<List<Map<String, dynamic>>?> _listFolderContents() async {
+    try {
+      if (_accessToken == null && !await _authenticate()) {
+        return null;
+      }
+
+      final response = await http.get(
+        Uri.parse(
+            'https://www.googleapis.com/drive/v3/files?q=${Uri.encodeComponent("'${_config.folderId}' in parents")}&fields=files(id,name,modifiedTime,md5Checksum)'),
+        headers: {
+          'Authorization': 'Bearer $_accessToken',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final files = data['files'] as List;
+        return files.cast<Map<String, dynamic>>();
+      } else {
+        LoggerService.instance.error(
+            'Failed to list folder contents: ${response.statusCode} ${response.body}',
+            tag: 'DRIVE');
+        return null;
+      }
+    } catch (e, stack) {
+      LoggerService.instance.logException(
+          'Error listing folder contents', e, stack,
+          tag: 'DRIVE');
+      return null;
     }
   }
 
@@ -277,21 +272,31 @@ class GoogleDriveStorageService extends StorageService {
   @override
   Future<bool> hasUpdates(String localPath) async {
     try {
-      final metadata = await _getFileMetadata('app.zip');
-      if (metadata == null) return false;
+      final files = await _listFolderContents();
+      if (files == null || files.isEmpty) return false;
 
-      final remoteModified = metadata['modifiedTime'] as String?;
-      if (remoteModified == null) return false;
+      // Check each file to see if it's newer than the local version
+      for (final file in files) {
+        final fileName = file['name'] as String;
+        final remoteModified = file['modifiedTime'] as String?;
 
-      final localHash = await _getLocalFileHash('$localPath/app.zip');
-      if (localHash == null)
-        return true; // No local file means update available
+        if (remoteModified == null) continue;
 
-      final remoteTime = DateTime.parse(remoteModified);
-      final localTime =
-          DateTime.fromMillisecondsSinceEpoch(int.parse(localHash));
+        final localFilePath = '$localPath/$fileName';
+        final localHash = await _getLocalFileHash(localFilePath);
 
-      return remoteTime.isAfter(localTime);
+        if (localHash == null) return true; // File doesn't exist locally
+
+        final remoteTime = DateTime.parse(remoteModified);
+        final localTime =
+            DateTime.fromMillisecondsSinceEpoch(int.parse(localHash));
+
+        if (remoteTime.isAfter(localTime)) {
+          return true; // File has been updated
+        }
+      }
+
+      return false; // No updates found
     } catch (e, stack) {
       LoggerService.instance
           .logException('Error checking for updates', e, stack, tag: 'DRIVE');
@@ -305,10 +310,9 @@ class GoogleDriveStorageService extends StorageService {
       final directory = Directory(localPath);
       if (!await directory.exists()) return false;
 
-      // Check if there are any executable files
-      final files = directory.listSync();
-      return files
-          .any((f) => f.path.endsWith('.exe') || f.path.endsWith('.zip'));
+      // Check if there are any files in the directory
+      final files = await directory.list().toList();
+      return files.isNotEmpty;
     } catch (e, stack) {
       LoggerService.instance.logException(
           'Error checking repository initialization', e, stack,
@@ -319,14 +323,51 @@ class GoogleDriveStorageService extends StorageService {
 
   @override
   Future<String?> getLatestVersion(String localPath) async {
-    return await _getLocalFileHash('$localPath/app.zip');
+    try {
+      final directory = Directory(localPath);
+      if (!await directory.exists()) return null;
+
+      // Find the latest modification time among all local files
+      DateTime? latestModified;
+
+      await for (final file in directory.list(recursive: true)) {
+        if (file is File) {
+          final stat = await file.stat();
+          if (latestModified == null || stat.modified.isAfter(latestModified)) {
+            latestModified = stat.modified;
+          }
+        }
+      }
+
+      return latestModified?.toIso8601String();
+    } catch (e, stack) {
+      LoggerService.instance
+          .logException('Error getting latest version', e, stack, tag: 'DRIVE');
+      return null;
+    }
   }
 
   @override
   Future<String?> getRemoteVersion() async {
     try {
-      final metadata = await _getFileMetadata('app.zip');
-      return metadata?['modifiedTime'] as String?;
+      final files = await _listFolderContents();
+      if (files == null || files.isEmpty) return null;
+
+      // Find the latest modification time among all files
+      DateTime? latestModified;
+
+      for (final file in files) {
+        final modifiedTime = file['modifiedTime'] as String?;
+        if (modifiedTime != null) {
+          final modifiedDateTime = DateTime.parse(modifiedTime);
+          if (latestModified == null ||
+              modifiedDateTime.isAfter(latestModified)) {
+            latestModified = modifiedDateTime;
+          }
+        }
+      }
+
+      return latestModified?.toIso8601String();
     } catch (e, stack) {
       LoggerService.instance
           .logException('Error getting remote version', e, stack, tag: 'DRIVE');
