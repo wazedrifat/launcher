@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:process_run/process_run.dart';
 import 'package:launcher/services/logger_service.dart';
 
 class ProcessService {
@@ -71,8 +70,31 @@ class ProcessService {
 
   Future<bool> launchExecutable(String exePath) async {
     try {
-      final result = await Process.start(exePath, []);
-      return result.pid != null;
+      LoggerService.instance.logProcessOperation('Launch executable', details: 'Launching: $exePath');
+      
+      // Get the directory of the executable - many apps need to run from their own directory
+      final exeFile = File(exePath);
+      final workingDir = exeFile.parent.path;
+      
+      // Launch the process in detached mode to prevent hanging
+      // This ensures the process doesn't inherit stdin/stdout/stderr from the launcher
+      final process = await Process.start(
+        exePath,
+        [],
+        workingDirectory: workingDir,
+        mode: ProcessStartMode.detached,
+        runInShell: Platform.isWindows, // Use shell on Windows for better compatibility
+      );
+      
+      // For detached mode, the process starts immediately and is independent
+      // The process handle is still valid for getting the PID
+      final pid = process.pid;
+      LoggerService.instance.logProcessOperation('Executable launched', details: 'PID: $pid, Working directory: $workingDir');
+      
+      // With detached mode, we don't need to manage the process handle
+      // The process will continue running independently
+      // If we reach here, the process started successfully
+      return true;
     } catch (e, stack) {
       LoggerService.instance.logProcessOperation('Failed to launch executable', error: e, stackTrace: stack);
       print('[PROCESS][ERROR] $e');

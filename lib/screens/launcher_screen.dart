@@ -71,8 +71,9 @@ class _LauncherScreenState extends State<LauncherScreen> {
   Future<void> _checkRepositoryStatus() async {
     final config = ConfigService.instance.config;
     if (config != null) {
+      final localFolderPath = await config.getLocalFolderPath();
       final isCloned = await GitService.instance.isRepositoryInitialized(
-        config.localFolder,
+        localFolderPath,
       );
       setState(() {
         _isRepositoryCloned = isCloned;
@@ -91,7 +92,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
         });
         return;
       }
-      final tag = await VersionService.instance.getLocalLatestTag(config.localFolder);
+      final localFolderPath = await config.getLocalFolderPath();
+      final tag = await VersionService.instance.getLocalLatestTag(localFolderPath);
       setState(() {
         _latestTag = tag;
       });
@@ -105,8 +107,9 @@ class _LauncherScreenState extends State<LauncherScreen> {
   Future<void> _findExecutable() async {
     final config = ConfigService.instance.config;
     if (config != null) {
+      final localFolderPath = await config.getLocalFolderPath();
       final exePath = await ProcessService.instance.findExecutable(
-        config.localFolder,
+        localFolderPath,
         config.exeFileName,
       );
       setState(() {
@@ -126,9 +129,10 @@ class _LauncherScreenState extends State<LauncherScreen> {
     });
 
     try {
+      final localFolderPath = await config.getLocalFolderPath();
       final hasUpdates = await GitService.instance.hasUpdates(
         config.githubRepo.url,
-        config.localFolder,
+        localFolderPath,
         config.githubRepo.branch,
       );
 
@@ -164,9 +168,10 @@ class _LauncherScreenState extends State<LauncherScreen> {
         _updateProgressValue = 0.3;
       });
 
+      final localFolderPath = await config.getLocalFolderPath();
       final success = await GitService.instance.cloneRepository(
         config.githubRepo.url,
-        config.localFolder,
+        localFolderPath,
         config.githubRepo.branch,
         onProgress: (progress, percent) {
           setState(() {
@@ -234,8 +239,9 @@ class _LauncherScreenState extends State<LauncherScreen> {
     });
 
     try {
+      final localFolderPath = await config.getLocalFolderPath();
       final isInitialized = await GitService.instance.isRepositoryInitialized(
-        config.localFolder,
+        localFolderPath,
       );
 
       setState(() {
@@ -246,7 +252,7 @@ class _LauncherScreenState extends State<LauncherScreen> {
       bool success;
       if (isInitialized) {
         success = await GitService.instance.pullRepository(
-          config.localFolder,
+          localFolderPath,
           onProgress: (progress, percent) {
             setState(() {
               _updateProgress = progress;
@@ -257,7 +263,7 @@ class _LauncherScreenState extends State<LauncherScreen> {
       } else {
         success = await GitService.instance.cloneRepository(
           config.githubRepo.url,
-          config.localFolder,
+          localFolderPath,
           config.githubRepo.branch,
           onProgress: (progress, percent) {
             setState(() {

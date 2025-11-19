@@ -1,7 +1,10 @@
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+
 class AppConfig {
   final String appName;
   final GitHubRepo githubRepo;
-  final String localFolder;
+  final String localFolder; // folder name only, not full path
   final String backgroundImage; // empty means no background image
   final int updateCheckInterval;
   final String exeFileName; // exact executable name to launch
@@ -16,6 +19,27 @@ class AppConfig {
     required this.exeFileName,
     required this.appIcon,
   });
+
+  /// Resolves the full path to the local folder under AppData
+  /// Creates the directory if it doesn't exist
+  Future<String> getLocalFolderPath() async {
+    try {
+      final appDataDir = await getApplicationSupportDirectory();
+      final separator = Platform.pathSeparator;
+      final fullPath = '${appDataDir.path}$separator$localFolder';
+      
+      // Ensure directory exists
+      final dir = Directory(fullPath);
+      if (!dir.existsSync()) {
+        await dir.create(recursive: true);
+      }
+      
+      return fullPath;
+    } catch (e) {
+      // Fallback: if path_provider fails, use local folder as-is (backward compatibility)
+      return localFolder;
+    }
+  }
 
   factory AppConfig.fromJson(Map<String, dynamic> json) {
     return AppConfig(
