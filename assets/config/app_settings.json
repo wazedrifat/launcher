@@ -4,6 +4,7 @@
     "url": "https://github.com/wazedrifat/testGitClient",
     "branch": "main"
   },
+  "google_drive_file_id": "1xJXZf8T7cJjJSNCflS-VqzBWvkIWC2GO",
   "local_folder": "TestProject",
   "background_image": "assets/images/bg.jpg",
   "update_check_interval": 300000,

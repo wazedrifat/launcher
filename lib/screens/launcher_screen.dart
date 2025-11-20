@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:launcher/services/config_service.dart';
 import 'package:launcher/services/git_service.dart';
@@ -22,6 +23,7 @@ class _LauncherScreenState extends State<LauncherScreen> {
   bool _isOnline = false;
   bool _isRepositoryCloned = false;
   bool _isLaunching = false; // opening exe loader
+  bool _isClearingStorage = false;
   String? _executablePath;
   String? _updateProgress;
   double _updateProgressValue = 0.0;
@@ -53,9 +55,11 @@ class _LauncherScreenState extends State<LauncherScreen> {
       await _checkForUpdates();
       _startPeriodicChecks();
 
-      LoggerService.instance.info('App initialization completed successfully', tag: 'APP');
+      LoggerService.instance
+          .info('App initialization completed successfully', tag: 'APP');
     } catch (e, stackTrace) {
-      LoggerService.instance.logException('App initialization failed', e, stackTrace, tag: 'APP');
+      LoggerService.instance
+          .logException('App initialization failed', e, stackTrace, tag: 'APP');
       print('[APP][ERROR] $e');
       print('[APP][STACK] $stackTrace');
     }
@@ -78,8 +82,11 @@ class _LauncherScreenState extends State<LauncherScreen> {
       setState(() {
         _isRepositoryCloned = isCloned;
       });
-      LoggerService.instance.info('Repository status: ${isCloned ? 'Cloned' : 'Not cloned'}', tag: 'APP');
-      LoggerService.instance.info('Background image path: ${config.backgroundImage}', tag: 'APP');
+      LoggerService.instance.info(
+          'Repository status: ${isCloned ? 'Cloned' : 'Not cloned'}',
+          tag: 'APP');
+      LoggerService.instance
+          .info('Background image path: ${config.backgroundImage}', tag: 'APP');
     }
   }
 
@@ -93,12 +100,15 @@ class _LauncherScreenState extends State<LauncherScreen> {
         return;
       }
       final localFolderPath = await config.getLocalFolderPath();
-      final tag = await VersionService.instance.getLocalLatestTag(localFolderPath);
+      final tag =
+          await VersionService.instance.getLocalLatestTag(localFolderPath);
       setState(() {
         _latestTag = tag;
       });
     } catch (e, stack) {
-      LoggerService.instance.logException('Failed to read local version tag', e, stack, tag: 'VERSION');
+      LoggerService.instance.logException(
+          'Failed to read local version tag', e, stack,
+          tag: 'VERSION');
       print('[VERSION][ERROR] $e');
       print('[VERSION][STACK] $stack');
     }
@@ -144,7 +154,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
       setState(() {
         _isCheckingUpdate = false;
       });
-      LoggerService.instance.logException('Update check failed', e, stack, tag: 'UPDATE');
+      LoggerService.instance
+          .logException('Update check failed', e, stack, tag: 'UPDATE');
       print('[UPDATE][ERROR] $e');
       print('[UPDATE][STACK] $stack');
     }
@@ -176,7 +187,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
         onProgress: (progress, percent) {
           setState(() {
             _updateProgress = progress;
-            _updateProgressValue = percent ?? _updateProgressValue; // keep last when null
+            _updateProgressValue =
+                percent ?? _updateProgressValue; // keep last when null
           });
         },
       );
@@ -212,7 +224,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
         });
       }
     } catch (e, stack) {
-      LoggerService.instance.logException('Installation failed', e, stack, tag: 'INSTALL');
+      LoggerService.instance
+          .logException('Installation failed', e, stack, tag: 'INSTALL');
       print('[INSTALL][ERROR] $e');
       print('[INSTALL][STACK] $stack');
       setState(() {
@@ -245,7 +258,9 @@ class _LauncherScreenState extends State<LauncherScreen> {
       );
 
       setState(() {
-        _updateProgress = isInitialized ? 'Pulling latest changes...' : 'Cloning repository...';
+        _updateProgress = isInitialized
+            ? 'Pulling latest changes...'
+            : 'Cloning repository...';
         _updateProgressValue = 0.3;
       });
 
@@ -301,7 +316,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
         }
       });
     } catch (e, stack) {
-      LoggerService.instance.logException('Update failed', e, stack, tag: 'UPDATE');
+      LoggerService.instance
+          .logException('Update failed', e, stack, tag: 'UPDATE');
       print('[UPDATE][ERROR] $e');
       print('[UPDATE][STACK] $stack');
       setState(() {
@@ -323,7 +339,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
     });
 
     try {
-      final isRunning = await ProcessService.instance.isProcessRunning(_executablePath!);
+      final isRunning =
+          await ProcessService.instance.isProcessRunning(_executablePath!);
       if (isRunning) {
         setState(() {
           _isProcessRunning = true;
@@ -331,15 +348,18 @@ class _LauncherScreenState extends State<LauncherScreen> {
         return;
       }
 
-      final launched = await ProcessService.instance.launchExecutable(_executablePath!);
+      final launched =
+          await ProcessService.instance.launchExecutable(_executablePath!);
       // Give the process a moment to appear in tasklist
       await Future.delayed(const Duration(milliseconds: 400));
-      final nowRunning = await ProcessService.instance.isProcessRunning(_executablePath!);
+      final nowRunning =
+          await ProcessService.instance.isProcessRunning(_executablePath!);
       setState(() {
         _isProcessRunning = launched && nowRunning;
       });
     } catch (e, stack) {
-      LoggerService.instance.logException('Failed to open executable', e, stack, tag: 'PROCESS');
+      LoggerService.instance
+          .logException('Failed to open executable', e, stack, tag: 'PROCESS');
     } finally {
       if (mounted) {
         setState(() {
@@ -372,7 +392,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
   Future<void> _checkProcessStatus() async {
     if (_executablePath == null) return;
 
-    final isRunning = await ProcessService.instance.isProcessRunning(_executablePath!);
+    final isRunning =
+        await ProcessService.instance.isProcessRunning(_executablePath!);
     setState(() {
       _isProcessRunning = isRunning;
     });
@@ -390,7 +411,11 @@ class _LauncherScreenState extends State<LauncherScreen> {
                   image: AssetImage(config.backgroundImage),
                   fit: BoxFit.cover,
                   onError: (exception, stackTrace) {
-                    LoggerService.instance.error('Failed to load background image: ${config.backgroundImage}', tag: 'UI', error: exception, stackTrace: stackTrace);
+                    LoggerService.instance.error(
+                        'Failed to load background image: ${config.backgroundImage}',
+                        tag: 'UI',
+                        error: exception,
+                        stackTrace: stackTrace);
                   },
                 )
               : null,
@@ -405,7 +430,7 @@ class _LauncherScreenState extends State<LauncherScreen> {
             Positioned(
               top: 40,
               right: 40,
-              child: _buildStatusIndicator(),
+              child: _buildStatusAndSettings(),
             ),
             Positioned(
               top: 40,
@@ -536,7 +561,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
   }
 
   Widget _buildOpenButton() {
-    final bool disabled = _executablePath == null || _isProcessRunning || _isLaunching;
+    final bool disabled =
+        _executablePath == null || _isProcessRunning || _isLaunching;
 
     return ElevatedButton.icon(
       onPressed: disabled
@@ -571,6 +597,17 @@ class _LauncherScreenState extends State<LauncherScreen> {
     );
   }
 
+  Widget _buildStatusAndSettings() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildStatusIndicator(),
+        const SizedBox(width: 12),
+        _buildSettingsButton(),
+      ],
+    );
+  }
+
   Widget _buildStatusIndicator() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -598,6 +635,118 @@ class _LauncherScreenState extends State<LauncherScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildSettingsButton() {
+    return GestureDetector(
+      onTap: _isClearingStorage ? null : _showSettingsDialog,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.black54,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _isClearingStorage ? Colors.orangeAccent : Colors.white24,
+            width: 1,
+          ),
+        ),
+        child: _isClearingStorage
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : const Icon(
+                Icons.settings,
+                color: Colors.white,
+                size: 18,
+              ),
+      ),
+    );
+  }
+
+  void _showSettingsDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Settings'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ElevatedButton.icon(
+                onPressed: () async {
+                  Navigator.of(dialogContext).pop();
+                  await _clearLocalFolder();
+                },
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Clear'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 48),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _clearLocalFolder() async {
+    final config = ConfigService.instance.config;
+    if (config == null) {
+      return;
+    }
+
+    setState(() {
+      _isClearingStorage = true;
+    });
+
+    try {
+      final localFolderPath = await config.getLocalFolderPath();
+      final directory = Directory(localFolderPath);
+
+      if (await directory.exists()) {
+        await directory.delete(recursive: true);
+      }
+
+      await directory.create(recursive: true);
+
+      await _checkRepositoryStatus();
+      await _findExecutable();
+      await _refreshLocalVersion();
+
+      setState(() {
+        _isProcessRunning = false;
+        _executablePath = null;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Local folder cleared.')),
+        );
+      }
+    } catch (e, stack) {
+      LoggerService.instance.logException(
+          'Failed to clear local folder', e, stack,
+          tag: 'STORAGE');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to clear local folder: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isClearingStorage = false;
+        });
+      }
+    }
   }
 
   Widget _buildVersionDisplay() {
@@ -631,7 +780,8 @@ class _LauncherScreenState extends State<LauncherScreen> {
   }
 
   Widget _buildProgressIndicator() {
-    final bool isDeterminate = _updateProgressValue > 0.0 && _updateProgressValue <= 1.0;
+    final bool isDeterminate =
+        _updateProgressValue > 0.0 && _updateProgressValue <= 1.0;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
