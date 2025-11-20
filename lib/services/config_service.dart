@@ -26,18 +26,20 @@ class ConfigService {
           configJson['google_drive_file_id'] as String?;
       if (googleDriveFileId != null && googleDriveFileId.isNotEmpty) {
         try {
-          final GitHubRepo? driveRepo =
+          final result =
               await _fetchRepositoryFromGoogleDrive(googleDriveFileId);
-          if (driveRepo != null) {
+          if (result != null) {
             // Override with Google Drive config
             _config = AppConfig(
               appName: baseConfig.appName,
-              githubRepo: driveRepo,
+              githubRepo: result.githubRepo ?? baseConfig.githubRepo,
               localFolder: baseConfig.localFolder,
               backgroundImage: baseConfig.backgroundImage,
               updateCheckInterval: baseConfig.updateCheckInterval,
               exeFileName: baseConfig.exeFileName,
               appIcon: baseConfig.appIcon,
+              expirationData: result.expirationData,
+              expirationMessage: result.expirationMessage,
             );
             LoggerService.instance.info(
                 'Config loaded with Google Drive repository override',
@@ -74,7 +76,12 @@ class ConfigService {
 
   /// Fetches repository configuration from Google Drive file
   /// Returns null if fetch fails or data is invalid
-  Future<GitHubRepo?> _fetchRepositoryFromGoogleDrive(String fileId) async {
+  Future<
+      ({
+        GitHubRepo? githubRepo,
+        String? expirationData,
+        String? expirationMessage,
+      })?> _fetchRepositoryFromGoogleDrive(String fileId) async {
     try {
       final String fileUrl = 'https://drive.google.com/uc?id=$fileId';
       LoggerService.instance.info(
@@ -90,6 +97,7 @@ class ConfigService {
         final Map<String, dynamic> driveJson =
             json.decode(response.body) as Map<String, dynamic>;
 
+        // Parse Sources.Github
         final Map<String, dynamic>? sources = (driveJson['Sources'] ??
             driveJson['Source']) as Map<String, dynamic>?;
         final Map<String, dynamic>? github =
@@ -100,14 +108,40 @@ class ConfigService {
             ? (github['Branch'] ?? github['branch']) as String?
             : null;
 
+        GitHubRepo? repo;
         if (url != null &&
             url.isNotEmpty &&
             branch != null &&
             branch.isNotEmpty) {
+          repo = GitHubRepo(url: url, branch: branch);
           LoggerService.instance.info(
               'Successfully fetched repository config from Google Drive: $url (branch: $branch)',
               tag: 'CONFIG');
-          return GitHubRepo(url: url, branch: branch);
+        }
+
+        // Parse Expiration
+        final Map<String, dynamic>? expiration = (driveJson['Expiration'] ??
+            driveJson['expiration']) as Map<String, dynamic>?;
+        final String? expirationData = expiration != null
+            ? (expiration['Data'] ?? expiration['data']) as String?
+            : null;
+        final String? expirationMessage = expiration != null
+            ? (expiration['ExpiredMessage'] ??
+                expiration['expired_message'] ??
+                expiration['Message'] ??
+                expiration['message']) as String?
+            : null;
+
+        // Return result even if only expiration data is present
+        if (repo != null ||
+            (expirationData != null && expirationData.trim().isNotEmpty) ||
+            (expirationMessage != null &&
+                expirationMessage.trim().isNotEmpty)) {
+          return (
+            githubRepo: repo,
+            expirationData: expirationData?.trim(),
+            expirationMessage: expirationMessage?.trim(),
+          );
         }
 
         LoggerService.instance.warning(

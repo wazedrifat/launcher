@@ -402,6 +402,7 @@ class _LauncherScreenState extends State<LauncherScreen> {
   @override
   Widget build(BuildContext context) {
     final config = ConfigService.instance.config;
+    final expiredMessage = config?.expiredMessage;
 
     return Scaffold(
       body: Container(
@@ -437,6 +438,16 @@ class _LauncherScreenState extends State<LauncherScreen> {
               left: 40,
               child: _buildVersionDisplay(),
             ),
+            if (expiredMessage != null)
+              Positioned(
+                top: 120,
+                left: 0,
+                right: 0,
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: _buildExpirationWarningBanner(expiredMessage),
+                ),
+              ),
             if (_isUpdating && _updateProgress != null)
               Positioned(
                 bottom: 120,
@@ -561,8 +572,12 @@ class _LauncherScreenState extends State<LauncherScreen> {
   }
 
   Widget _buildOpenButton() {
-    final bool disabled =
-        _executablePath == null || _isProcessRunning || _isLaunching;
+    final config = ConfigService.instance.config;
+    final isExpired = config?.isExpired ?? false;
+    final bool disabled = isExpired ||
+        _executablePath == null ||
+        _isProcessRunning ||
+        _isLaunching;
 
     return ElevatedButton.icon(
       onPressed: disabled
@@ -582,7 +597,11 @@ class _LauncherScreenState extends State<LauncherScreen> {
             )
           : const Icon(Icons.play_arrow),
       label: Text(
-        _isProcessRunning ? 'Running' : (_isLaunching ? 'Opening...' : 'Open'),
+        isExpired
+            ? 'Expired'
+            : _isProcessRunning
+                ? 'Running'
+                : (_isLaunching ? 'Opening...' : 'Open'),
         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
       ),
       style: ElevatedButton.styleFrom(
@@ -664,6 +683,48 @@ class _LauncherScreenState extends State<LauncherScreen> {
                 color: Colors.white,
                 size: 18,
               ),
+      ),
+    );
+  }
+
+  Widget _buildExpirationWarningBanner(String message) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 600),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.redAccent.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white54, width: 1),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black45,
+              blurRadius: 12,
+              offset: Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            const Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
