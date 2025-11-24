@@ -744,7 +744,7 @@ class _LauncherScreenState extends State<LauncherScreen> {
                   await _clearLocalFolder();
                 },
                 icon: const Icon(Icons.delete_outline),
-                label: const Text('Clear'),
+                label: const Text('Delete Files'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.redAccent,
                   foregroundColor: Colors.white,
@@ -789,16 +789,16 @@ class _LauncherScreenState extends State<LauncherScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Local folder cleared.')),
+          const SnackBar(content: Text('Local files cleared.')),
         );
       }
     } catch (e, stack) {
       LoggerService.instance.logException(
-          'Failed to clear local folder', e, stack,
+          'Failed to clear local files', e, stack,
           tag: 'STORAGE');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to clear local folder: $e')),
+          SnackBar(content: Text('Failed to clear local files: $e')),
         );
       }
     } finally {
